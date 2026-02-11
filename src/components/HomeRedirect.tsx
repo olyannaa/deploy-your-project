@@ -1,5 +1,8 @@
 import { Navigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function HomeRedirect() {
-  return <Navigate to="/projects" replace />;
+  const { user } = useAuth();
+  const isAccountant = user.roles.includes("accountant") && !user.roles.some(r => ["admin", "gip"].includes(r));
+  return <Navigate to={isAccountant ? "/finance" : "/projects"} replace />;
 }

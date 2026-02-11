@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -128,7 +129,9 @@ const reasonLabels: Record<string, string> = {
 
 export default function Finance() {
   const navigate = useNavigate();
-
+  const { user } = useAuth();
+  const isAccountant = user?.roles?.includes("accountant");
+  const isReadOnly = !isAccountant;
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["projects"],
     queryFn: () => apiFetch("/projects"),
@@ -417,8 +420,8 @@ export default function Finance() {
                         return (
                           <TableCell
                             key={wi}
-                            className="p-1 border-l border-border cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => openPaymentDialog(project.id, wi)}
+                            className="p-1 border-l border-border transition-colors"
+                            onClick={() => !isReadOnly && openPaymentDialog(project.id, wi)}
                           >
                             {entries.length > 0 ? (
                               <Tooltip>
@@ -461,8 +464,8 @@ export default function Finance() {
                         return (
                           <TableCell
                             key={wi}
-                            className="p-1 border-l border-border cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => openIncomeDialog(project.id, wi)}
+                            className="p-1 border-l border-border transition-colors"
+                            onClick={() => !isReadOnly && openIncomeDialog(project.id, wi)}
                           >
                             {entries.length > 0 ? (
                               <Tooltip>

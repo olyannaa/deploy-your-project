@@ -10,6 +10,7 @@ import ProjectTasks from "@/components/project/ProjectTasks";
 import ProjectGantt from "@/components/project/ProjectGantt";
 import ProjectFiles from "@/components/project/ProjectFiles";
 import ProjectChat from "@/components/project/ProjectChat";
+import ProjectFinanceTab from "@/components/project/ProjectFinanceTab";
 import { useRole } from "@/contexts/RoleContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
@@ -32,10 +33,12 @@ export default function ProjectDetails() {
 
   const showAnalytics = currentRole !== "executor";
   const showTasks = ["admin", "gip", "executor", "accountant"].includes(currentRole);
+  const showFinance = ["admin", "gip", "accountant"].includes(currentRole);
   const allowedTabs = useMemo(() => {
     const tabs = [
       showAnalytics ? "analytics" : null,
       "properties",
+      showFinance ? "finance" : null,
       "team",
       showTasks ? "tasks" : null,
       "files",
@@ -43,7 +46,7 @@ export default function ProjectDetails() {
       "chat",
     ].filter(Boolean) as string[];
     return tabs;
-  }, [showAnalytics, showTasks]);
+  }, [showAnalytics, showTasks, showFinance]);
   const defaultTab = showAnalytics ? "analytics" : "properties";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
@@ -162,6 +165,15 @@ export default function ProjectDetails() {
           >
             Свойства
           </TabsTrigger>
+          {showFinance && (
+            <TabsTrigger
+              value="finance"
+              onClick={() => handleTabChange("finance")}
+              onPointerDown={() => handleTabChange("finance")}
+            >
+              Финансы
+            </TabsTrigger>
+          )}
           <TabsTrigger
             value="team"
             onClick={() => handleTabChange("team")}
@@ -210,6 +222,12 @@ export default function ProjectDetails() {
         <TabsContent value="properties" className="mt-6">
           <ProjectProperties project={projectView} />
         </TabsContent>
+
+        {showFinance && (
+          <TabsContent value="finance" className="mt-6">
+            <ProjectFinanceTab project={projectView} />
+          </TabsContent>
+        )}
 
         <TabsContent value="team" className="mt-6">
           <ProjectTeam project={projectView} />
