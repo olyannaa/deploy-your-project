@@ -18,6 +18,7 @@ import { RoleProvider } from "@/contexts/RoleContext";
 import innerLogo from "@/assets/inner-logo.svg";
 import { useAuth } from "@/contexts/AuthContext";
 import ThemeToggle from "./ThemeToggle";
+import NotificationBell from "./NotificationBell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface NavigationItem {
@@ -174,7 +175,8 @@ export function Layout({ children }: LayoutProps) {
 
         <main className="lg:ml-64 flex-1 w-full min-w-0 pt-16 lg:pt-0">
           <div className="container mx-auto p-4 sm:p-6 md:p-8">
-            <div className="mb-4 flex justify-end">
+            <div className="mb-4 flex items-center justify-end gap-2">
+              {(currentRole === "accountant" || currentRole === "admin") && <NotificationBell />}
               <ThemeToggle />
             </div>
             {children}
