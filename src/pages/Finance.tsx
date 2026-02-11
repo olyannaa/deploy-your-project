@@ -53,17 +53,19 @@ const paymentReasons = [
   { value: "subcontract", label: "Оплата субподрядчикам" },
 ];
 
-// Generate weeks from earliest project start to latest project end + buffer
-export function generateWeeks(projects: { startDate: string; endDate: string }[]): Date[] {
-  if (!projects.length) return [];
-  const starts = projects.map((p) => parseISO(p.startDate));
-  const ends = projects.map((p) => parseISO(p.endDate));
-  const minDate = startOfWeek(new Date(Math.min(...starts.map((d) => d.getTime()))), { weekStartsOn: 1 });
-  const maxDate = new Date(Math.max(...ends.map((d) => d.getTime())));
+// Generate weeks for the current half-year (Jan-Jun or Jul-Dec)
+export function generateWeeks(_projects?: { startDate: string; endDate: string }[]): Date[] {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based
+  const halfStart = month < 6 ? new Date(year, 0, 1) : new Date(year, 6, 1);
+  const halfEnd = month < 6 ? new Date(year, 5, 30) : new Date(year, 11, 31);
+
+  const minDate = startOfWeek(halfStart, { weekStartsOn: 1 });
 
   const weeks: Date[] = [];
   let current = minDate;
-  while (current <= addWeeks(maxDate, 2)) {
+  while (current <= halfEnd) {
     weeks.push(current);
     current = addWeeks(current, 1);
   }
