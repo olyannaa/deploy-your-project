@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -49,6 +50,7 @@ export interface PaymentEntry {
   taskId?: string;
   taskTitle?: string;
   reason?: string;
+  employeePayments?: { id: string; name: string; amount: number }[];
 }
 
 // Generate weeks for the current half-year (Jan-Jun or Jul-Dec)
@@ -137,6 +139,24 @@ export default function Finance() {
     queryFn: () => apiFetch("/tasks"),
   });
 
+  const { data: allEmployees = [] } = useQuery<any[]>({
+    queryKey: ["users", "all"],
+    queryFn: () => apiFetch("/users"),
+  });
+
+  const { data: allSubcontractors = [] } = useQuery<any[]>({
+    queryKey: ["all-subcontractors"],
+    queryFn: async () => {
+      const results: any[] = [];
+      for (const p of projects) {
+        const subs = await apiFetch<any[]>(`/projects/${p.id}/subcontractors`);
+        results.push(...subs);
+      }
+      return results;
+    },
+    enabled: projects.length > 0,
+  });
+
   const activeProjects = useMemo(
     () => projects.filter((p: any) => p.status === "active" || p.status === "completed"),
     [projects],
@@ -164,6 +184,7 @@ export default function Finance() {
   const [dialogAmount, setDialogAmount] = useState("");
   const [dialogTaskId, setDialogTaskId] = useState<string>("");
   const [dialogNote, setDialogNote] = useState("");
+  const [employeeAmounts, setEmployeeAmounts] = useState<Record<string, string>>({});
 
   const openPaymentDialog = (projectId: string, weekIndex: number) => {
     setEditCell({ projectId, weekIndex });
@@ -171,6 +192,7 @@ export default function Finance() {
     setDialogAmount("");
     setDialogTaskId("");
     setDialogNote("");
+    setEmployeeAmounts({});
     setDialogOpen(true);
   };
 
@@ -188,13 +210,38 @@ export default function Finance() {
     return allTasks.find((t: any) => t.id === dialogTaskId);
   };
 
+  // Resolve employee list from selected task
+  const getTaskEmployeeList = (task: any): { id: string; name: string; rate?: number }[] => {
+    if (!task?.selectedEmployeeIds?.length) return [];
+    const subtype = task.accountingSubtype;
+    return task.selectedEmployeeIds.map((eid: string) => {
+      if (subtype === "subcontract" || subtype === "subcontractors") {
+        const sub = allSubcontractors.find((s: any) => s.id === eid);
+        if (sub) return { id: eid, name: sub.contractorName, rate: sub.contractAmount };
+      }
+      const emp = allEmployees.find((e: any) => e.id === eid);
+      if (emp) return { id: eid, name: emp.fullName, rate: emp.dailyRate || emp.contractRate || 0 };
+      return { id: eid, name: eid, rate: 0 };
+    });
+  };
+
+  const dialogTaskEmployees = useMemo(() => {
+    const task = getSelectedTask();
+    return task ? getTaskEmployeeList(task) : [];
+  }, [dialogTaskId, allTasks, allEmployees, allSubcontractors]);
+
+  const hasEmployees = dialogTaskEmployees.length > 0;
+
+  const computeTotalFromEmployees = () => {
+    return Object.values(employeeAmounts).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  };
+
   const saveEntry = () => {
     if (!editCell) return;
-    const amount = parseFloat(dialogAmount) || 0;
-    if (amount <= 0) return;
 
     if (dialogMode === "income") {
-      // Income doesn't require task
+      const amount = parseFloat(dialogAmount) || 0;
+      if (amount <= 0) return;
       const entry: PaymentEntry = {
         amount,
         taskId: dialogTaskId !== "none" ? dialogTaskId : undefined,
@@ -213,11 +260,26 @@ export default function Finance() {
     } else {
       if (!dialogTaskId || dialogTaskId === "none") return;
       const task = getSelectedTask();
+      let totalAmount: number;
+      let empPayments: { id: string; name: string; amount: number }[] | undefined;
+
+      if (hasEmployees) {
+        empPayments = dialogTaskEmployees
+          .map((e) => ({ id: e.id, name: e.name, amount: parseFloat(employeeAmounts[e.id] || "") || 0 }))
+          .filter((e) => e.amount > 0);
+        totalAmount = empPayments.reduce((s, e) => s + e.amount, 0);
+        if (totalAmount <= 0) return;
+      } else {
+        totalAmount = parseFloat(dialogAmount) || 0;
+        if (totalAmount <= 0) return;
+      }
+
       const entry: PaymentEntry = {
-        amount,
+        amount: totalAmount,
         taskId: dialogTaskId,
         taskTitle: task?.title || "",
         reason: task?.accountingSubtype || undefined,
+        employeePayments: empPayments,
       };
       const existing = payments[editCell.projectId]?.[editCell.weekIndex] || [];
       const next = {
@@ -441,7 +503,7 @@ export default function Finance() {
 
         {/* Payment/Income Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent className="sm:max-w-[540px]">
             <DialogHeader>
               <DialogTitle>
                 {dialogMode === "income" ? "Ввод прихода" : "Ввод выплаты"}
@@ -451,7 +513,7 @@ export default function Finance() {
               {dialogMode === "payment" && (
                 <div className="space-y-2">
                   <Label>Задача *</Label>
-                  <Select value={dialogTaskId} onValueChange={setDialogTaskId}>
+                  <Select value={dialogTaskId} onValueChange={(v) => { setDialogTaskId(v); setEmployeeAmounts({}); }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Выберите задачу" />
                     </SelectTrigger>
@@ -477,6 +539,37 @@ export default function Finance() {
                 ) : null;
               })()}
 
+              {/* Per-employee amounts when task has employees */}
+              {dialogMode === "payment" && hasEmployees && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Суммы по сотрудникам</Label>
+                    <span className="text-xs text-muted-foreground">
+                      Итого: {computeTotalFromEmployees().toLocaleString("ru-RU")} ₽
+                    </span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-md border border-border">
+                    {dialogTaskEmployees.map((emp) => (
+                      <div key={emp.id} className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm truncate block">{emp.name}</span>
+                          {emp.rate ? (
+                            <span className="text-xs text-muted-foreground">Ставка: {emp.rate.toLocaleString("ru-RU")} ₽</span>
+                          ) : null}
+                        </div>
+                        <Input
+                          type="number"
+                          className="w-32"
+                          placeholder="Сумма"
+                          value={employeeAmounts[emp.id] || ""}
+                          onChange={(e) => setEmployeeAmounts((prev) => ({ ...prev, [emp.id]: e.target.value }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {dialogMode === "income" && (
                 <div className="space-y-2">
                   <Label>Описание</Label>
@@ -488,19 +581,22 @@ export default function Finance() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="payment-amount">
-                  {dialogMode === "income" ? "Сумма прихода *" : "Сумма выплаты *"}
-                </Label>
-                <Input
-                  id="payment-amount"
-                  type="number"
-                  placeholder="Введите сумму"
-                  value={dialogAmount}
-                  onChange={(e) => setDialogAmount(e.target.value)}
-                  autoFocus
-                />
-              </div>
+              {/* Single amount field - shown for income or payment without employees */}
+              {(dialogMode === "income" || !hasEmployees) && (
+                <div className="space-y-2">
+                  <Label htmlFor="payment-amount">
+                    {dialogMode === "income" ? "Сумма прихода *" : "Сумма выплаты *"}
+                  </Label>
+                  <Input
+                    id="payment-amount"
+                    type="number"
+                    placeholder="Введите сумму"
+                    value={dialogAmount}
+                    onChange={(e) => setDialogAmount(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -509,8 +605,9 @@ export default function Finance() {
               <Button
                 onClick={saveEntry}
                 disabled={
-                  !dialogAmount ||
-                  (dialogMode === "payment" && (!dialogTaskId || dialogTaskId === "none"))
+                  dialogMode === "payment"
+                    ? (!dialogTaskId || dialogTaskId === "none") || (hasEmployees ? computeTotalFromEmployees() <= 0 : !dialogAmount)
+                    : !dialogAmount
                 }
               >
                 Сохранить
