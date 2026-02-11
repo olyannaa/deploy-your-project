@@ -12,7 +12,6 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import {
   generateWeeks,
-  groupByMonth,
   weekLabel,
   getGlobalPayments,
   getProjectSubcontractorPaid,
@@ -132,7 +131,6 @@ export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
     if (!project.startDate || !project.endDate) return [];
     return generateWeeks([{ startDate: project.startDate, endDate: project.endDate }]);
   }, [project.startDate, project.endDate]);
-  const financeMonthGroups = useMemo(() => groupByMonth(financeWeeks), [financeWeeks]);
   const globalPayments = getGlobalPayments();
   const projectPayments = globalPayments[project.id] || {};
   const totalPaid = Object.values(projectPayments).reduce((s, v) => s + v.amount, 0);
@@ -303,11 +301,11 @@ export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
             <DialogTitle>Детализация затрат по проекту</DialogTitle>
           </DialogHeader>
 
-          <Tabs defaultValue="employees" className="mt-4">
-            <TabsList className="w-full grid grid-cols-4">
-              <TabsTrigger value="employees">Списание дней</TabsTrigger>
+          <Tabs defaultValue="finance" className="mt-4">
+            <TabsList className="inline-flex w-auto">
               <TabsTrigger value="finance">Финансы</TabsTrigger>
-              <TabsTrigger value="subcontractors">Субчики - фриланс</TabsTrigger>
+              <TabsTrigger value="employees">Учёт времени</TabsTrigger>
+              <TabsTrigger value="subcontractors">Субподрядчики/фриланс</TabsTrigger>
               <TabsTrigger value="additional">Доп. затраты</TabsTrigger>
             </TabsList>
 
@@ -351,54 +349,90 @@ export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
               </Table>
             </TabsContent>
 
-            {/* Tab 2: Finance (weekly payments for this project) */}
-            <TabsContent value="finance" className="mt-4">
-              <div className="overflow-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky left-0 z-10 bg-muted min-w-[120px]" rowSpan={2}>
-                        Проект
-                      </TableHead>
-                      <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>Бюджет</TableHead>
-                      <TableHead className="text-center bg-muted min-w-[90px]" rowSpan={2}>Оплачено</TableHead>
-                      <TableHead className="text-center bg-muted min-w-[90px]" rowSpan={2}>Остаток</TableHead>
-                      {financeMonthGroups.map((mg) => (
-                        <TableHead
-                          key={mg.label}
-                          className="text-center bg-muted border-l border-border capitalize"
-                          colSpan={mg.weeks.length}
-                        >
-                          {mg.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                    <TableRow>
-                      {financeWeeks.map((w, i) => (
-                        <TableHead key={i} className="text-center bg-muted text-xs min-w-[70px] border-l border-border">
-                          {weekLabel(w)}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell className="sticky left-0 z-10 bg-card font-medium">{project.name}</TableCell>
-                      <TableCell className="text-center tabular-nums">{formatCurrency(projectCosts.budget)}</TableCell>
-                      <TableCell className="text-center tabular-nums text-primary">{formatCurrency(totalPaid)}</TableCell>
-                      <TableCell className="text-center tabular-nums">{formatCurrency(projectCosts.budget - totalPaid)}</TableCell>
-                      {financeWeeks.map((_, wi) => {
-                        const entry = projectPayments[wi];
-                        return (
-                          <TableCell key={wi} className="text-center text-sm tabular-nums border-l border-border">
-                            {entry?.amount ? entry.amount.toLocaleString("ru-RU") : "—"}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  </TableBody>
-                </Table>
+            {/* Tab 2: Finance — summary of payments by category */}
+            <TabsContent value="finance" className="mt-4 space-y-4">
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-xs text-muted-foreground">Бюджет проекта</p>
+                  <p className="text-lg font-bold mt-1">{formatCurrency(projectCosts.budget)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-xs text-muted-foreground">Всего выплачено</p>
+                  <p className="text-lg font-bold text-primary mt-1">{formatCurrency(totalPaid)}</p>
+                </div>
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-xs text-muted-foreground">Остаток</p>
+                  <p className="text-lg font-bold mt-1">{formatCurrency(projectCosts.budget - totalPaid)}</p>
+                </div>
               </div>
+
+              {/* Payments list */}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Неделя</TableHead>
+                    <TableHead>Категория</TableHead>
+                    <TableHead>Связанная задача</TableHead>
+                    <TableHead className="text-right">Сумма</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(() => {
+                    const entries = Object.entries(projectPayments)
+                      .map(([wi, entry]) => ({
+                        weekIndex: Number(wi),
+                        week: financeWeeks[Number(wi)],
+                        ...entry,
+                      }))
+                      .filter((e) => e.amount > 0)
+                      .sort((a, b) => a.weekIndex - b.weekIndex);
+
+                    if (entries.length === 0) {
+                      return (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                            Нет зафиксированных выплат
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+
+                    const reasonLabels: Record<string, string> = {
+                      salary: "ЗП / Аванс",
+                      advance: "Аванс",
+                      subcontract: "Субподрядчики",
+                    };
+
+                    return (
+                      <>
+                        {entries.map((e) => (
+                          <TableRow key={e.weekIndex}>
+                            <TableCell className="tabular-nums">
+                              {e.week ? weekLabel(e.week) : `Нед. ${e.weekIndex + 1}`}
+                            </TableCell>
+                            <TableCell>
+                              {e.reason ? reasonLabels[e.reason] || e.reason : "Не указана"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {e.taskId ? e.taskId : "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-medium tabular-nums">
+                              {formatCurrency(e.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="bg-muted/50">
+                          <TableCell colSpan={3} className="font-semibold">Итого</TableCell>
+                          <TableCell className="text-right font-bold">
+                            {formatCurrency(entries.reduce((s, e) => s + e.amount, 0))}
+                          </TableCell>
+                        </TableRow>
+                      </>
+                    );
+                  })()}
+                </TableBody>
+              </Table>
             </TabsContent>
 
             {/* Tab 3: Subcontractors */}
