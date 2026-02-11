@@ -102,6 +102,8 @@ export default function ProjectDetails() {
         team: members.length,
         tasks: { total: totalTasks, completed: completedTasks },
         color: projectColors[0],
+        startDate: project.startDate,
+        endDate: project.endDate,
       }
     : null;
 

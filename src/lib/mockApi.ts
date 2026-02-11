@@ -7,6 +7,7 @@ import {
   mockContractors,
   mockSubcontractRequests,
   mockProjectMembers,
+  mockProjectSubcontractors,
 } from "@/data/mockData";
 
 // In-memory mutable copies so CRUD operations work in the session
@@ -17,6 +18,7 @@ let tasks = [...mockTasks.map((t) => ({ ...t }))];
 let contractors = [...mockContractors];
 let subcontractRequests = [...mockSubcontractRequests.map((r) => ({ ...r }))];
 const projectMembers: Record<string, string[]> = { ...mockProjectMembers };
+let projectSubcontractors = [...mockProjectSubcontractors.map((s) => ({ ...s }))];
 let timeEntries: any[] = [];
 let dayOffs: any[] = [];
 
@@ -157,6 +159,12 @@ export async function mockApiFetch<T>(
   if (m && method === "GET") {
     const projectTasks = tasks.filter((t) => t.projectId === m!.id);
     return projectTasks as unknown as T;
+  }
+
+  // ── Project subcontractors ──
+  m = matchRoute(rawPath, "/projects/:id/subcontractors");
+  if (m && method === "GET") {
+    return projectSubcontractors.filter((s) => s.projectId === m!.id) as unknown as T;
   }
 
   // ── Project sections ──
