@@ -75,7 +75,7 @@ export const mockProjects = [
     departmentName: "Отдел проектирования",
     manager: "Петров П.П.",
     organization: "ООО «АгроПроект»",
-    budget: "12 500 000 ₽",
+    budget: 12500000,
     sections: [
       ...generateSections(irdTemplate, base, 0),
       ...generateSections(projectDocumentationTemplate, base, 60),
@@ -96,7 +96,7 @@ export const mockProjects = [
     departmentName: "Отдел проектирования",
     manager: "Петров П.П.",
     organization: "ООО «ПаркСтрой»",
-    budget: "8 200 000 ₽",
+    budget: 8200000,
     sections: generateSections(projectDocumentationTemplate, new Date("2024-01-15"), 0),
   },
   {
@@ -113,7 +113,7 @@ export const mockProjects = [
     departmentName: "Отдел инженерных систем",
     manager: "Новиков С.В.",
     organization: "ООО «ВостокЛогистик»",
-    budget: "6 800 000 ₽",
+    budget: 6800000,
     sections: generateSections(irdTemplate, new Date("2024-06-01"), 0),
   },
   {
@@ -130,7 +130,7 @@ export const mockProjects = [
     departmentName: "Отдел проектирования",
     manager: "Петров П.П.",
     organization: "Администрация г. Краснодар",
-    budget: "15 000 000 ₽",
+    budget: 15000000,
     sections: generateSections(workDocumentationTemplate, new Date("2023-09-01"), 0),
   },
   {
@@ -147,7 +147,7 @@ export const mockProjects = [
     departmentName: "Отдел изысканий",
     manager: "Новиков С.В.",
     organization: "ООО «МолПром»",
-    budget: "3 200 000 ₽",
+    budget: 3200000,
     sections: [],
   },
 ];
