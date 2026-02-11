@@ -68,14 +68,17 @@ export default function Projects() {
     if (!user) {
       return;
     }
-    if (user.primaryDepartmentId) {
+    // Бухгалтер видит все проекты
+    if (currentRole === "accountant") {
+      setDepartmentFilter("all");
+    } else if (user.primaryDepartmentId) {
       setDepartmentFilter((current) =>
         current === "all" ? user.primaryDepartmentId : current,
       );
     } else {
       setDepartmentFilter("all");
     }
-  }, [user?.id, user?.primaryDepartmentId]);
+  }, [user?.id, user?.primaryDepartmentId, currentRole]);
 
   const formatShortDate = (value?: string | null) =>
     value
