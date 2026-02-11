@@ -38,6 +38,17 @@ export default function AccountingEmployeeSelect({
     ? employees.find((e) => e.id === timesheetUserId)
     : null;
 
+  const allSelected = employees.length > 0 && selectedIds.length === employees.length;
+  const someSelected = selectedIds.length > 0 && selectedIds.length < employees.length;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      onSelectionChange([]);
+    } else {
+      onSelectionChange(employees.map((e) => e.id));
+    }
+  };
+
   const toggleEmployee = (id: string) => {
     if (selectedIds.includes(id)) {
       onSelectionChange(selectedIds.filter((x) => x !== id));
@@ -91,7 +102,21 @@ export default function AccountingEmployeeSelect({
         {employees.length === 0 ? (
           <p className="p-3 text-sm text-muted-foreground">Нет доступных сотрудников</p>
         ) : (
-          employees.map((emp) => (
+          <>
+            <div
+              className="flex items-center gap-3 border-b border-border px-3 py-2 bg-muted/20 cursor-pointer hover:bg-muted/40"
+              onClick={toggleAll}
+            >
+              <Checkbox
+                checked={allSelected}
+                ref={(el) => {
+                  if (el) (el as any).indeterminate = someSelected;
+                }}
+                onCheckedChange={toggleAll}
+              />
+              <span className="text-sm font-medium">Выбрать всех ({employees.length})</span>
+            </div>
+          {employees.map((emp) => (
             <div
               key={emp.id}
               className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-muted/30"
@@ -129,7 +154,8 @@ export default function AccountingEmployeeSelect({
                 <Eye className="h-4 w-4" />
               </Button>
             </div>
-          ))
+            ))}
+          </>
         )}
       </div>
 
