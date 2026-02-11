@@ -13,10 +13,10 @@ interface DemoUser {
 }
 
 const demoUsers: DemoUser[] = [
-  { id: "1", fullName: "Администратор", email: "admin@project.com", role: "admin", roles: ["admin"], canApproveSubcontracts: true },
-  { id: "2", fullName: "ГИП", email: "gip@project.com", role: "gip", roles: ["gip"], canApproveSubcontracts: false },
-  { id: "3", fullName: "Исполнитель", email: "executor@project.com", role: "executor", roles: ["executor"], canApproveSubcontracts: false },
-  { id: "4", fullName: "Бухгалтер", email: "accountant@project.com", role: "accountant", roles: ["accountant"], canApproveSubcontracts: false },
+  { id: "user-1", fullName: "Иванов Иван Иванович", email: "admin@project.com", role: "admin", roles: ["admin"], canApproveSubcontracts: true, primaryDepartmentId: "dept-1" },
+  { id: "user-2", fullName: "Петров Пётр Петрович", email: "gip@project.com", role: "gip", roles: ["gip"], canApproveSubcontracts: false, primaryDepartmentId: "dept-1" },
+  { id: "user-3", fullName: "Сидорова Анна Сергеевна", email: "executor@project.com", role: "executor", roles: ["executor"], canApproveSubcontracts: false, primaryDepartmentId: "dept-1" },
+  { id: "user-5", fullName: "Морозова Елена Андреевна", email: "accountant@project.com", role: "accountant", roles: ["accountant"], canApproveSubcontracts: false, primaryDepartmentId: "dept-4" },
 ];
 
 interface AuthContextType {
