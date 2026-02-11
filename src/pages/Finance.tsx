@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/tooltip";
 import { differenceInDays, parseISO, startOfWeek, addWeeks, format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { Plus } from "lucide-react";
+import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 
 interface Project {
   id: string;
@@ -130,7 +132,9 @@ const reasonLabels: Record<string, string> = {
 export default function Finance() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isAccountant = user?.roles?.includes("accountant");
+  const isAdminOrGip = user?.roles?.some((r: string) => ["admin", "gip"].includes(r));
   const isReadOnly = !isAccountant;
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["projects"],
@@ -188,6 +192,8 @@ export default function Finance() {
   const [dialogTaskId, setDialogTaskId] = useState<string>("");
   const [dialogNote, setDialogNote] = useState("");
   const [employeeAmounts, setEmployeeAmounts] = useState<Record<string, string>>({});
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+  const [createTaskProjectId, setCreateTaskProjectId] = useState<string | undefined>();
 
   const openPaymentDialog = (projectId: string, weekIndex: number) => {
     setEditCell({ projectId, weekIndex });
@@ -334,13 +340,26 @@ export default function Finance() {
     new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
 
   const handleProjectClick = (projectId: string) => {
-    navigate(`/projects/${projectId}?tab=analytics&openCosts=true`);
+    navigate(`/projects/${projectId}?tab=finance`);
+  };
+
+  const handleCreateTaskForProject = (projectId: string) => {
+    setCreateTaskProjectId(projectId);
+    setIsCreateTaskOpen(true);
   };
 
   return (
     <TooltipProvider>
       <div>
-        <h1 className="text-2xl font-bold mb-6">Финансы</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Финансы</h1>
+          {(isAccountant || isAdminOrGip) && (
+            <Button className="gap-2" onClick={() => { setCreateTaskProjectId(undefined); setIsCreateTaskOpen(true); }}>
+              <Plus className="h-4 w-4" />
+              Создать задачу
+            </Button>
+          )}
+        </div>
 
         <div className="rounded-lg border border-border overflow-auto bg-card">
           <Table>
@@ -394,12 +413,25 @@ export default function Finance() {
                     {/* Payments row */}
                     <TableRow key={project.id}>
                       <TableCell className="sticky left-0 z-10 bg-card font-medium" rowSpan={2}>
-                        <button
-                          onClick={() => handleProjectClick(project.id)}
-                          className="text-primary hover:underline text-left"
-                        >
-                          {project.name}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleProjectClick(project.id)}
+                            className="text-primary hover:underline text-left"
+                          >
+                            {project.name}
+                          </button>
+                          {isAdminOrGip && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              title="Создать задачу бухгалтеру"
+                              onClick={(e) => { e.stopPropagation(); handleCreateTaskForProject(project.id); }}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center tabular-nums" rowSpan={2}>
                         {project.budget.toLocaleString("ru-RU")} ₽
@@ -618,6 +650,14 @@ export default function Finance() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <CreateTaskDialog
+          open={isCreateTaskOpen}
+          onOpenChange={setIsCreateTaskOpen}
+          projectId={createTaskProjectId}
+          forceTaskType="accounting"
+          onCreated={() => queryClient.invalidateQueries({ queryKey: ["tasks"] })}
+        />
       </div>
     </TooltipProvider>
   );
