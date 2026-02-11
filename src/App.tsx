@@ -17,7 +17,6 @@ import Tasks from "./pages/Tasks";
 import TimeTracking from "./pages/TimeTracking";
 import Approvals from "./pages/Approvals";
 import NotFound from "./pages/NotFound";
-import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -30,7 +29,6 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomeRedirect />} />
-            <Route path="/login" element={<Login />} />
             <Route
               path="/projects"
               element={
