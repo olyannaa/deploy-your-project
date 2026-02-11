@@ -44,6 +44,7 @@ export interface PaymentEntry {
   taskId?: string;
   reason?: string;
   selectedSubcontractorIds?: string[];
+  subcontractorAmounts?: Record<string, number>; // subcontractorId -> amount
 }
 
 const paymentReasons = [
@@ -101,7 +102,7 @@ export function getProjectSubcontractorPaid(projectId: string, subcontractorId: 
   if (!p) return 0;
   return Object.values(p)
     .filter((v) => v.reason === "subcontract" && v.selectedSubcontractorIds?.includes(subcontractorId))
-    .reduce((sum, v) => sum + v.amount, 0);
+    .reduce((sum, v) => sum + (v.subcontractorAmounts?.[subcontractorId] ?? 0), 0);
 }
 
 export default function Finance() {
@@ -138,6 +139,7 @@ export default function Finance() {
   const [dialogTaskId, setDialogTaskId] = useState<string>("");
   const [dialogReason, setDialogReason] = useState<string>("");
   const [selectedSubcontractorIds, setSelectedSubcontractorIds] = useState<string[]>([]);
+  const [subcontractorAmounts, setSubcontractorAmounts] = useState<Record<string, number>>({});
 
   // Fetch subcontractors for current project
   const { data: projectSubcontractors = [] } = useQuery<any[]>({
@@ -153,6 +155,7 @@ export default function Finance() {
     setDialogTaskId(existing?.taskId || "");
     setDialogReason(existing?.reason || "");
     setSelectedSubcontractorIds(existing?.selectedSubcontractorIds || []);
+    setSubcontractorAmounts(existing?.subcontractorAmounts || {});
     setDialogOpen(true);
   };
 
@@ -168,6 +171,7 @@ export default function Finance() {
           taskId: dialogTaskId || undefined,
           reason: dialogReason || undefined,
           selectedSubcontractorIds: dialogReason === "subcontract" ? selectedSubcontractorIds : undefined,
+          subcontractorAmounts: dialogReason === "subcontract" ? subcontractorAmounts : undefined,
         },
       },
     };
@@ -189,9 +193,34 @@ export default function Finance() {
   };
 
   const toggleSubcontractor = (id: string) => {
-    setSelectedSubcontractorIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelectedSubcontractorIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      // Recalculate total from subcontractor amounts
+      if (!prev.includes(id)) {
+        // Adding — keep existing amount or 0
+      } else {
+        // Removing — clear amount
+        setSubcontractorAmounts((a) => {
+          const { [id]: _, ...rest } = a;
+          const newTotal = Object.values(rest).reduce((s, v) => s + v, 0);
+          setDialogAmount(newTotal > 0 ? String(newTotal) : "");
+          return rest;
+        });
+      }
+      return next;
+    });
+  };
+
+  const updateSubcontractorAmount = (subId: string, value: string) => {
+    const num = parseFloat(value) || 0;
+    setSubcontractorAmounts((prev) => {
+      const next = { ...prev, [subId]: num };
+      const total = Object.entries(next)
+        .filter(([key]) => selectedSubcontractorIds.includes(key))
+        .reduce((s, [, v]) => s + v, 0);
+      setDialogAmount(total > 0 ? String(total) : "");
+      return next;
+    });
   };
 
   const today = new Date();
@@ -295,13 +324,20 @@ export default function Finance() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="payment-amount">Сумма выплаты *</Label>
+              <Label htmlFor="payment-amount">
+                Сумма выплаты *
+                {dialogReason === "subcontract" && selectedSubcontractorIds.length > 0 && (
+                  <span className="text-xs text-muted-foreground ml-2">(авто-сумма из субподрядчиков)</span>
+                )}
+              </Label>
               <Input
                 id="payment-amount"
                 type="number"
                 placeholder="Введите сумму"
                 value={dialogAmount}
                 onChange={(e) => setDialogAmount(e.target.value)}
+                readOnly={dialogReason === "subcontract" && selectedSubcontractorIds.length > 0}
+                className={dialogReason === "subcontract" && selectedSubcontractorIds.length > 0 ? "bg-muted" : ""}
                 autoFocus
               />
             </div>
@@ -351,26 +387,39 @@ export default function Finance() {
                 {projectSubcontractors.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Нет субподрядчиков в этом проекте</p>
                 ) : (
-                  <div className="border border-border rounded-md p-3 space-y-3 max-h-[200px] overflow-auto">
-                    {projectSubcontractors.map((sub: any) => (
-                      <label
-                        key={sub.id}
-                        className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded p-1.5 -m-1.5"
-                      >
-                        <Checkbox
-                          checked={selectedSubcontractorIds.includes(sub.id)}
-                          onCheckedChange={() => toggleSubcontractor(sub.id)}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{sub.contractorName}</p>
-                          <div className="flex gap-4 text-xs text-muted-foreground mt-0.5">
-                            <span>Сумма: {formatCurrency(sub.contractAmount)}</span>
-                            <span>Дней: {sub.workDays}</span>
-                          </div>
+                  <div className="border border-border rounded-md p-3 space-y-3 max-h-[280px] overflow-auto">
+                    {projectSubcontractors.map((sub: any) => {
+                      const isSelected = selectedSubcontractorIds.includes(sub.id);
+                      return (
+                        <div key={sub.id} className="space-y-2 hover:bg-muted/50 rounded p-1.5 -m-1.5">
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSubcontractor(sub.id)}
+                              className="mt-0.5"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{sub.contractorName}</p>
+                              <div className="flex gap-4 text-xs text-muted-foreground mt-0.5">
+                                <span>Договор: {formatCurrency(sub.contractAmount)}</span>
+                                <span>Дней: {sub.workDays}</span>
+                              </div>
+                            </div>
+                          </label>
+                          {isSelected && (
+                            <div className="ml-8">
+                              <Input
+                                type="number"
+                                placeholder="Сумма выплаты"
+                                value={subcontractorAmounts[sub.id] || ""}
+                                onChange={(e) => updateSubcontractorAmount(sub.id, e.target.value)}
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                          )}
                         </div>
-                      </label>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
