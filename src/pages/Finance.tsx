@@ -61,7 +61,7 @@ function weekLabel(date: Date): string {
 export default function Finance() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["projects"],
-    queryFn: () => apiFetch("/api/projects"),
+    queryFn: () => apiFetch("/projects"),
   });
 
   const activeProjects = useMemo(
