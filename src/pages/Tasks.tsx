@@ -82,7 +82,7 @@ export default function Tasks() {
     roles.includes("executor") &&
     !roles.some((role) => ["admin", "gip", "accountant"].includes(role));
 
-  const shouldFilterByAssignee = roles.includes("admin") || roles.includes("gip");
+  const shouldFilterByAssignee = roles.includes("admin") || roles.includes("gip") || roles.includes("accountant");
   const canManageTasks = roles.some((role) =>
     ["admin", "gip"].includes(role),
   );
