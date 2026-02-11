@@ -180,6 +180,15 @@ export const mockSubcontractRequests = [
   { id: "sub-2", taskId: "task-12", taskTitle: "Земляные работы (субподряд)", projectName: "Логистический центр «Восток»", contractorName: "ООО «ГеоИзыскания»", estimatedCost: 1200000, finalCost: 1150000, status: "approved", createdAt: "2024-06-20" },
 ];
 
+// ── Project subcontractors (freelancers) ──
+export const mockProjectSubcontractors = [
+  { id: "psub-1", projectId: "proj-1", contractorId: "contr-1", contractorName: "ООО «СтройМонтаж»", contractAmount: 850000, workDays: 45 },
+  { id: "psub-2", projectId: "proj-1", contractorId: "contr-3", contractorName: "ИП Кузнецов А.В.", contractAmount: 320000, workDays: 20 },
+  { id: "psub-3", projectId: "proj-2", contractorId: "contr-1", contractorName: "ООО «СтройМонтаж»", contractAmount: 500000, workDays: 30 },
+  { id: "psub-4", projectId: "proj-3", contractorId: "contr-2", contractorName: "ООО «ГеоИзыскания»", contractAmount: 1200000, workDays: 60 },
+  { id: "psub-5", projectId: "proj-3", contractorId: "contr-3", contractorName: "ИП Кузнецов А.В.", contractAmount: 180000, workDays: 15 },
+];
+
 // ── Project members mapping ──
 export const mockProjectMembers: Record<string, string[]> = {
   "proj-1": ["user-1", "user-2", "user-3", "user-4", "user-6"],
