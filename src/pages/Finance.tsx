@@ -88,12 +88,23 @@ export function weekLabel(date: Date): string {
   return format(date, "dd.MM");
 }
 
-// Shared payments store — now stores arrays per cell for multiple payments
+// Shared payments store — arrays per cell for multiple payments
 let globalPayments: Record<string, Record<number, PaymentEntry[]>> = {};
 export function getGlobalPayments() { return globalPayments; }
 export function setGlobalPayments(p: Record<string, Record<number, PaymentEntry[]>>) { globalPayments = p; }
+
+// Shared income store — arrays per cell
+let globalIncomes: Record<string, Record<number, PaymentEntry[]>> = {};
+export function getGlobalIncomes() { return globalIncomes; }
+export function setGlobalIncomes(p: Record<string, Record<number, PaymentEntry[]>>) { globalIncomes = p; }
+
 export function getProjectPaidTotal(projectId: string): number {
   const p = globalPayments[projectId];
+  if (!p) return 0;
+  return Object.values(p).reduce((sum, entries) => sum + entries.reduce((s, e) => s + e.amount, 0), 0);
+}
+export function getProjectIncomeTotal(projectId: string): number {
+  const p = globalIncomes[projectId];
   if (!p) return 0;
   return Object.values(p).reduce((sum, entries) => sum + entries.reduce((s, e) => s + e.amount, 0), 0);
 }
@@ -135,22 +146,40 @@ export default function Finance() {
   const monthGroups = useMemo(() => groupByMonth(weeks), [weeks]);
 
   const [payments, setPayments] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalPayments);
+  const [incomes, setIncomes] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalIncomes);
 
   const updatePayments = (next: Record<string, Record<number, PaymentEntry[]>>) => {
     setPayments(next);
     setGlobalPayments(next);
   };
+  const updateIncomes = (next: Record<string, Record<number, PaymentEntry[]>>) => {
+    setIncomes(next);
+    setGlobalIncomes(next);
+  };
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"payment" | "income">("payment");
   const [editCell, setEditCell] = useState<{ projectId: string; weekIndex: number } | null>(null);
   const [dialogAmount, setDialogAmount] = useState("");
   const [dialogTaskId, setDialogTaskId] = useState<string>("");
+  const [dialogNote, setDialogNote] = useState("");
 
   const openPaymentDialog = (projectId: string, weekIndex: number) => {
     setEditCell({ projectId, weekIndex });
+    setDialogMode("payment");
     setDialogAmount("");
     setDialogTaskId("");
+    setDialogNote("");
+    setDialogOpen(true);
+  };
+
+  const openIncomeDialog = (projectId: string, weekIndex: number) => {
+    setEditCell({ projectId, weekIndex });
+    setDialogMode("income");
+    setDialogAmount("");
+    setDialogTaskId("");
+    setDialogNote("");
     setDialogOpen(true);
   };
 
@@ -159,26 +188,47 @@ export default function Finance() {
     return allTasks.find((t: any) => t.id === dialogTaskId);
   };
 
-  const savePayment = () => {
-    if (!editCell || !dialogTaskId || dialogTaskId === "none") return;
+  const saveEntry = () => {
+    if (!editCell) return;
     const amount = parseFloat(dialogAmount) || 0;
     if (amount <= 0) return;
-    const task = getSelectedTask();
-    const entry: PaymentEntry = {
-      amount,
-      taskId: dialogTaskId,
-      taskTitle: task?.title || "",
-      reason: task?.accountingSubtype || undefined,
-    };
-    const existing = payments[editCell.projectId]?.[editCell.weekIndex] || [];
-    const next = {
-      ...payments,
-      [editCell.projectId]: {
-        ...payments[editCell.projectId],
-        [editCell.weekIndex]: [...existing, entry],
-      },
-    };
-    updatePayments(next);
+
+    if (dialogMode === "income") {
+      // Income doesn't require task
+      const entry: PaymentEntry = {
+        amount,
+        taskId: dialogTaskId !== "none" ? dialogTaskId : undefined,
+        taskTitle: dialogTaskId !== "none" ? getSelectedTask()?.title : dialogNote || "Приход от заказчика",
+        reason: "income",
+      };
+      const existing = incomes[editCell.projectId]?.[editCell.weekIndex] || [];
+      const next = {
+        ...incomes,
+        [editCell.projectId]: {
+          ...incomes[editCell.projectId],
+          [editCell.weekIndex]: [...existing, entry],
+        },
+      };
+      updateIncomes(next);
+    } else {
+      if (!dialogTaskId || dialogTaskId === "none") return;
+      const task = getSelectedTask();
+      const entry: PaymentEntry = {
+        amount,
+        taskId: dialogTaskId,
+        taskTitle: task?.title || "",
+        reason: task?.accountingSubtype || undefined,
+      };
+      const existing = payments[editCell.projectId]?.[editCell.weekIndex] || [];
+      const next = {
+        ...payments,
+        [editCell.projectId]: {
+          ...payments[editCell.projectId],
+          [editCell.weekIndex]: [...existing, entry],
+        },
+      };
+      updatePayments(next);
+    }
     setDialogOpen(false);
     setEditCell(null);
   };
@@ -195,6 +245,18 @@ export default function Finance() {
     return Object.values(p).reduce((sum, entries) => sum + entries.reduce((s, e) => s + e.amount, 0), 0);
   };
 
+  const getTotalIncome = (projectId: string) => {
+    const p = incomes[projectId];
+    if (!p) return 0;
+    return Object.values(p).reduce((sum, entries) => sum + entries.reduce((s, e) => s + e.amount, 0), 0);
+  };
+
+  const getIncomeCellTotal = (projectId: string, weekIndex: number) => {
+    const entries = incomes[projectId]?.[weekIndex];
+    if (!entries || entries.length === 0) return 0;
+    return entries.reduce((s, e) => s + e.amount, 0);
+  };
+
   const getProjectAccountantTasks = (projectId: string) => {
     return allTasks.filter(
       (t: any) => t.projectId === projectId && t.taskType === "accounting",
@@ -207,7 +269,6 @@ export default function Finance() {
     new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
 
   const handleProjectClick = (projectId: string) => {
-    // Navigate to project and auto-open cost details
     navigate(`/projects/${projectId}?tab=analytics&openCosts=true`);
   };
 
@@ -225,6 +286,9 @@ export default function Finance() {
                 </TableHead>
                 <TableHead className="text-center bg-muted min-w-[120px]" rowSpan={2}>
                   Сумма по договору
+                </TableHead>
+                <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>
+                  Приходы
                 </TableHead>
                 <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>
                   Оплачено
@@ -256,108 +320,155 @@ export default function Finance() {
             <TableBody>
               {activeProjects.map((project) => {
                 const paid = getTotalPaid(project.id);
+                const income = getTotalIncome(project.id);
                 const remaining = project.budget - paid;
                 const daysLeft = Math.max(0, differenceInDays(parseISO(project.endDate), today));
 
                 return (
-                  <TableRow key={project.id}>
-                    <TableCell className="sticky left-0 z-10 bg-card font-medium">
-                      <button
-                        onClick={() => handleProjectClick(project.id)}
-                        className="text-primary hover:underline text-left"
-                      >
-                        {project.name}
-                      </button>
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {project.budget.toLocaleString("ru-RU")} ₽
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums text-primary">
-                      {paid.toLocaleString("ru-RU")} ₽
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {remaining.toLocaleString("ru-RU")} ₽
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">{daysLeft}</TableCell>
-                    {weeks.map((_, wi) => {
-                      const entries = payments[project.id]?.[wi] || [];
-                      const cellTotal = getCellTotal(project.id, wi);
-                      return (
-                        <TableCell
-                          key={wi}
-                          className="p-1 border-l border-border cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() => openPaymentDialog(project.id, wi)}
+                  <>
+                    {/* Payments row */}
+                    <TableRow key={project.id}>
+                      <TableCell className="sticky left-0 z-10 bg-card font-medium" rowSpan={2}>
+                        <button
+                          onClick={() => handleProjectClick(project.id)}
+                          className="text-primary hover:underline text-left"
                         >
-                          {entries.length > 0 ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="h-8 min-w-[70px] flex items-center justify-center text-sm tabular-nums rounded-md border border-transparent hover:border-border">
-                                  {cellTotal.toLocaleString("ru-RU")}
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-[300px]">
-                                <div className="space-y-1">
-                                  {entries.map((e, idx) => (
-                                    <div key={idx} className="flex justify-between gap-4 text-xs">
-                                      <span className="truncate">
-                                        {e.reason ? reasonLabels[e.reason] || e.reason : ""}{" "}
-                                        {e.taskTitle || ""}
-                                      </span>
-                                      <span className="font-medium whitespace-nowrap">
-                                        {formatCurrency(e.amount)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                  {entries.length > 1 && (
-                                    <div className="flex justify-between gap-4 text-xs font-bold border-t border-border pt-1 mt-1">
-                                      <span>Итого</span>
-                                      <span>{formatCurrency(cellTotal)}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <div className="h-8 min-w-[70px] flex items-center justify-center text-sm tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
-                              —
-                            </div>
-                          )}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
+                          {project.name}
+                        </button>
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums" rowSpan={2}>
+                        {project.budget.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-green-600 dark:text-green-400" rowSpan={2}>
+                        {income.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-primary" rowSpan={2}>
+                        {paid.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums" rowSpan={2}>
+                        {remaining.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums" rowSpan={2}>{daysLeft}</TableCell>
+                      {weeks.map((_, wi) => {
+                        const entries = payments[project.id]?.[wi] || [];
+                        const cellTotal = getCellTotal(project.id, wi);
+                        return (
+                          <TableCell
+                            key={wi}
+                            className="p-1 border-l border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => openPaymentDialog(project.id, wi)}
+                          >
+                            {entries.length > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-destructive">
+                                    −{cellTotal.toLocaleString("ru-RU")}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[300px]">
+                                  <p className="font-semibold text-xs mb-1">Расходы:</p>
+                                  <div className="space-y-1">
+                                    {entries.map((e, idx) => (
+                                      <div key={idx} className="flex justify-between gap-4 text-xs">
+                                        <span className="truncate">
+                                          {e.reason ? reasonLabels[e.reason] || e.reason : ""}{" "}
+                                          {e.taskTitle || ""}
+                                        </span>
+                                        <span className="font-medium whitespace-nowrap">
+                                          {formatCurrency(e.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
+                                —
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                    {/* Income row */}
+                    <TableRow key={`${project.id}-income`} className="border-b-2 border-border">
+                      {weeks.map((_, wi) => {
+                        const entries = incomes[project.id]?.[wi] || [];
+                        const cellTotal = getIncomeCellTotal(project.id, wi);
+                        return (
+                          <TableCell
+                            key={wi}
+                            className="p-1 border-l border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => openIncomeDialog(project.id, wi)}
+                          >
+                            {entries.length > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-green-600 dark:text-green-400">
+                                    +{cellTotal.toLocaleString("ru-RU")}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[300px]">
+                                  <p className="font-semibold text-xs mb-1">Приходы:</p>
+                                  <div className="space-y-1">
+                                    {entries.map((e, idx) => (
+                                      <div key={idx} className="flex justify-between gap-4 text-xs">
+                                        <span className="truncate">{e.taskTitle || "Приход"}</span>
+                                        <span className="font-medium whitespace-nowrap">
+                                          {formatCurrency(e.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
+                                —
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  </>
                 );
               })}
             </TableBody>
           </Table>
         </div>
 
-        {/* Payment Dialog */}
+        {/* Payment/Income Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
-              <DialogTitle>Ввод выплаты</DialogTitle>
+              <DialogTitle>
+                {dialogMode === "income" ? "Ввод прихода" : "Ввод выплаты"}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label>Задача *</Label>
-                <Select value={dialogTaskId} onValueChange={setDialogTaskId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите задачу" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Не выбрана —</SelectItem>
-                    {editCell &&
-                      getProjectAccountantTasks(editCell.projectId).map((task: any) => (
-                        <SelectItem key={task.id} value={task.id}>
-                          {task.title}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {dialogMode === "payment" && (
+                <div className="space-y-2">
+                  <Label>Задача *</Label>
+                  <Select value={dialogTaskId} onValueChange={setDialogTaskId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите задачу" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Не выбрана —</SelectItem>
+                      {editCell &&
+                        getProjectAccountantTasks(editCell.projectId).map((task: any) => (
+                          <SelectItem key={task.id} value={task.id}>
+                            {task.title}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-              {dialogTaskId && dialogTaskId !== "none" && (() => {
+              {dialogMode === "payment" && dialogTaskId && dialogTaskId !== "none" && (() => {
                 const task = getSelectedTask();
                 return task?.accountingSubtype ? (
                   <div className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
@@ -366,8 +477,21 @@ export default function Finance() {
                 ) : null;
               })()}
 
+              {dialogMode === "income" && (
+                <div className="space-y-2">
+                  <Label>Описание</Label>
+                  <Input
+                    placeholder="Напр. Оплата от заказчика за этап 1"
+                    value={dialogNote}
+                    onChange={(e) => setDialogNote(e.target.value)}
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label htmlFor="payment-amount">Сумма выплаты *</Label>
+                <Label htmlFor="payment-amount">
+                  {dialogMode === "income" ? "Сумма прихода *" : "Сумма выплаты *"}
+                </Label>
                 <Input
                   id="payment-amount"
                   type="number"
@@ -383,8 +507,11 @@ export default function Finance() {
                 Отмена
               </Button>
               <Button
-                onClick={savePayment}
-                disabled={!dialogTaskId || dialogTaskId === "none" || !dialogAmount}
+                onClick={saveEntry}
+                disabled={
+                  !dialogAmount ||
+                  (dialogMode === "payment" && (!dialogTaskId || dialogTaskId === "none"))
+                }
               >
                 Сохранить
               </Button>
