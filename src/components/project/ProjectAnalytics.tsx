@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, Users, Clock, CheckCircle2, RussianRuble } from "lucide-react";
@@ -36,7 +37,18 @@ interface ProjectAnalyticsProps {
 
 export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
   const { currentRole } = useRole();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [costsDialogOpen, setCostsDialogOpen] = useState(false);
+
+  // Auto-open costs dialog when navigated from Finance page
+  useEffect(() => {
+    if (searchParams.get("openCosts") === "true") {
+      setCostsDialogOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("openCosts");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: analytics } = useQuery({
     queryKey: ["project", project.id, "analytics"],
@@ -133,7 +145,7 @@ export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
   }, [project.startDate, project.endDate]);
   const globalPayments = getGlobalPayments();
   const projectPayments = globalPayments[project.id] || {};
-  const totalPaid = Object.values(projectPayments).reduce((s, v) => s + v.amount, 0);
+  const totalPaid = Object.values(projectPayments).reduce((s, entries) => s + entries.reduce((es, e) => es + e.amount, 0), 0);
 
   return (
     <div className="space-y-6">
@@ -379,16 +391,18 @@ export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
                 </TableHeader>
                 <TableBody>
                   {(() => {
-                    const entries = Object.entries(projectPayments)
-                      .map(([wi, entry]) => ({
-                        weekIndex: Number(wi),
-                        week: financeWeeks[Number(wi)],
-                        ...entry,
-                      }))
+                    const flatEntries = Object.entries(projectPayments)
+                      .flatMap(([wi, entries]) =>
+                        entries.map((entry) => ({
+                          weekIndex: Number(wi),
+                          week: financeWeeks[Number(wi)],
+                          ...entry,
+                        }))
+                      )
                       .filter((e) => e.amount > 0)
                       .sort((a, b) => a.weekIndex - b.weekIndex);
 
-                    if (entries.length === 0) {
+                    if (flatEntries.length === 0) {
                       return (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
@@ -398,24 +412,25 @@ export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
                       );
                     }
 
-                    const reasonLabels: Record<string, string> = {
+                    const rl: Record<string, string> = {
                       salary: "ЗП / Аванс",
-                      advance: "Аванс",
                       subcontract: "Субподрядчики",
+                      additional: "Доп. затраты",
+                      other: "Другое",
                     };
 
                     return (
                       <>
-                        {entries.map((e) => (
-                          <TableRow key={e.weekIndex}>
+                        {flatEntries.map((e, idx) => (
+                          <TableRow key={`${e.weekIndex}-${idx}`}>
                             <TableCell className="tabular-nums">
                               {e.week ? weekLabel(e.week) : `Нед. ${e.weekIndex + 1}`}
                             </TableCell>
                             <TableCell>
-                              {e.reason ? reasonLabels[e.reason] || e.reason : "Не указана"}
+                              {e.reason ? rl[e.reason] || e.reason : "Не указана"}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {e.taskId ? e.taskId : "—"}
+                              {e.taskTitle || e.taskId || "—"}
                             </TableCell>
                             <TableCell className="text-right font-medium tabular-nums">
                               {formatCurrency(e.amount)}
@@ -425,7 +440,7 @@ export default function ProjectAnalytics({ project }: ProjectAnalyticsProps) {
                         <TableRow className="bg-muted/50">
                           <TableCell colSpan={3} className="font-semibold">Итого</TableCell>
                           <TableCell className="text-right font-bold">
-                            {formatCurrency(entries.reduce((s, e) => s + e.amount, 0))}
+                            {formatCurrency(flatEntries.reduce((s, e) => s + e.amount, 0))}
                           </TableCell>
                         </TableRow>
                       </>
