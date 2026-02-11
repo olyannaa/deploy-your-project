@@ -21,6 +21,7 @@ import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import AccountingEmployeeSelect from "./AccountingEmployeeSelect";
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -60,6 +61,14 @@ const taskTypeLabels: Record<string, string> = {
   subcontract: "Субподряд",
 };
 
+const accountingSubtypeOptions = [
+  { id: "salary", label: "Зарплата/Аванс" },
+  { id: "subcontractors", label: "Субподрядчики/Фриланс" },
+  { id: "extra_costs", label: "Доп. затраты" },
+  { id: "other", label: "Другое" },
+  { id: "none", label: "Отсутствует" },
+];
+
 export default function CreateTaskDialog({
   open,
   onOpenChange,
@@ -88,6 +97,9 @@ export default function CreateTaskDialog({
   const [subcontractCost, setSubcontractCost] = useState("");
   const [plannedStartDate, setPlannedStartDate] = useState("");
   const [plannedEndDate, setPlannedEndDate] = useState("");
+  const [accountingSubtype, setAccountingSubtype] = useState("none");
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [accountingProjectId, setAccountingProjectId] = useState("");
 
   const taskTypeOptions = useMemo(() => {
     if (projectId) {
@@ -144,13 +156,67 @@ export default function CreateTaskDialog({
   const { data: internalUsers = [] } = useQuery({
     queryKey: ["users", "internal"],
     queryFn: () => apiFetch<UserOption[]>("/users?scope=internal"),
-    enabled: open && showAccountingAssignee,
+    enabled: open && (showAccountingAssignee),
   });
 
   const accountantOptions = useMemo(
     () => internalUsers.filter((candidate) => candidate.roles?.includes("accountant")),
     [internalUsers],
   );
+
+  // All users for accounting salary selection (no project filter)
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ["users", "all"],
+    queryFn: () => apiFetch<UserOption[]>("/users"),
+    enabled: open && taskType === "accounting" && accountingSubtype === "salary",
+  });
+
+  // Project members for accounting salary selection (with project filter)
+  const { data: accountingProjectMembers = [] } = useQuery({
+    queryKey: ["project", accountingProjectId, "members", "accounting"],
+    queryFn: () => apiFetch<MemberOption[]>(`/projects/${accountingProjectId}/members`),
+    enabled: open && taskType === "accounting" && (accountingSubtype === "salary" || accountingSubtype === "subcontractors") && !!accountingProjectId,
+  });
+
+  // Project subcontractors for accounting
+  const { data: accountingSubcontractors = [] } = useQuery({
+    queryKey: ["project", accountingProjectId, "subcontractors", "accounting"],
+    queryFn: () => apiFetch<any[]>(`/projects/${accountingProjectId}/subcontractors`),
+    enabled: open && taskType === "accounting" && accountingSubtype === "subcontractors" && !!accountingProjectId,
+  });
+
+  const salaryEmployeeList = useMemo(() => {
+    if (accountingSubtype !== "salary") return [];
+    if (accountingProjectId) {
+      return accountingProjectMembers.map((m) => ({
+        id: m.id,
+        fullName: m.fullName,
+        dailyRate: (allUsers.find((u) => u.id === m.id) as any)?.dailyRate ?? 0,
+        contractRate: (allUsers.find((u) => u.id === m.id) as any)?.contractRate ?? null,
+        contractorName: m.contractorName,
+        workDays: Math.floor(Math.random() * 22) + 1,
+      }));
+    }
+    return allUsers.map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      dailyRate: (u as any).dailyRate ?? 0,
+      contractRate: (u as any).contractRate ?? null,
+      contractorName: u.contractorName,
+      workDays: Math.floor(Math.random() * 22) + 1,
+    }));
+  }, [accountingSubtype, accountingProjectId, accountingProjectMembers, allUsers]);
+
+  const subcontractorEmployeeList = useMemo(() => {
+    if (accountingSubtype !== "subcontractors" || !accountingProjectId) return [];
+    return accountingSubcontractors.map((s: any) => ({
+      id: s.id,
+      fullName: s.contractorName,
+      contractorName: s.contractorName,
+      contractAmount: s.contractAmount,
+      workDays: s.workDays ?? 0,
+    }));
+  }, [accountingSubtype, accountingProjectId, accountingSubcontractors]);
 
   useEffect(() => {
     if (projectId) {
@@ -174,6 +240,9 @@ export default function CreateTaskDialog({
     setSubcontractCost("");
     setPlannedStartDate("");
     setPlannedEndDate("");
+    setAccountingSubtype("none");
+    setSelectedEmployeeIds([]);
+    setAccountingProjectId("");
   }, [selectedProjectId, taskType]);
 
   const resetForm = () => {
@@ -183,6 +252,9 @@ export default function CreateTaskDialog({
     setSubcontractCost("");
     setPlannedStartDate("");
     setPlannedEndDate("");
+    setAccountingSubtype("none");
+    setSelectedEmployeeIds([]);
+    setAccountingProjectId("");
     if (!projectId) {
       setSelectedProjectId("");
       setTaskType("personal");
@@ -231,11 +303,15 @@ export default function CreateTaskDialog({
     try {
       const payload: any = {
         taskType,
-        projectId: showProjectFields ? selectedProjectId : null,
+        projectId: showProjectFields ? selectedProjectId : (taskType === "accounting" && accountingProjectId ? accountingProjectId : null),
         title: taskType === "subcontract" ? undefined : title.trim(),
         assigneeId: showAccountingAssignee || showProjectAssignee || showSubcontractAssignee ? assigneeId || null : null,
         sectionId: showSectionField ? sectionId || null : null,
       };
+      if (taskType === "accounting") {
+        payload.accountingSubtype = accountingSubtype;
+        payload.selectedEmployeeIds = selectedEmployeeIds;
+      }
       if (taskType === "personal") {
         payload.plannedStartDate = plannedStartDate || null;
         payload.plannedEndDate = plannedEndDate || null;
@@ -402,6 +478,71 @@ export default function CreateTaskDialog({
                 </SelectContent>
               </Select>
             </div>
+          )}
+
+          {taskType === "accounting" && (
+            <div className="space-y-2">
+              <Label>Вид задачи</Label>
+              <Select value={accountingSubtype} onValueChange={(v) => {
+                setAccountingSubtype(v);
+                setSelectedEmployeeIds([]);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите вид" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accountingSubtypeOptions.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {taskType === "accounting" && (accountingSubtype === "salary" || accountingSubtype === "subcontractors") && (
+            <div className="space-y-2">
+              <Label>Проект (опционально)</Label>
+              <Select value={accountingProjectId || "none"} onValueChange={(v) => {
+                setAccountingProjectId(v === "none" ? "" : v);
+                setSelectedEmployeeIds([]);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Без привязки к проекту" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Без привязки к проекту</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {taskType === "accounting" && accountingSubtype === "salary" && (
+            <AccountingEmployeeSelect
+              label="Сотрудники"
+              employees={salaryEmployeeList}
+              selectedIds={selectedEmployeeIds}
+              onSelectionChange={setSelectedEmployeeIds}
+            />
+          )}
+
+          {taskType === "accounting" && accountingSubtype === "subcontractors" && accountingProjectId && (
+            <AccountingEmployeeSelect
+              label="Субподрядчики"
+              employees={subcontractorEmployeeList}
+              selectedIds={selectedEmployeeIds}
+              onSelectionChange={setSelectedEmployeeIds}
+            />
+          )}
+
+          {taskType === "accounting" && accountingSubtype === "subcontractors" && !accountingProjectId && (
+            <p className="text-sm text-muted-foreground">Выберите проект для отображения субподрядчиков</p>
           )}
 
           {showSubcontractAssignee && (
