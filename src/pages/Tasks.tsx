@@ -281,12 +281,17 @@ export default function Tasks() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tasksView.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Нет задач</TableCell>
-                </TableRow>
-              ) : (
-                tasksView.map((task) => (
+              {(() => {
+                const statusOrder: Record<string, number> = { new: 0, in_progress: 1, review: 2, done: 3 };
+                const sorted = [...tasksView].sort((a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99));
+                if (sorted.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Нет задач</TableCell>
+                    </TableRow>
+                  );
+                }
+                return sorted.map((task) => (
                   <TableRow
                     key={task.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -310,8 +315,8 @@ export default function Tasks() {
                       {task.plannedEndDate ? new Date(task.plannedEndDate).toLocaleDateString("ru-RU") : "—"}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                ));
+              })()}
             </TableBody>
           </Table>
         </div>

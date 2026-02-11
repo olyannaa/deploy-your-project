@@ -27,6 +27,7 @@ interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId?: string;
+  forceTaskType?: string;
   onCreated?: () => void;
 }
 
@@ -73,6 +74,7 @@ export default function CreateTaskDialog({
   open,
   onOpenChange,
   projectId,
+  forceTaskType,
   onCreated,
 }: CreateTaskDialogProps) {
   const queryClient = useQueryClient();
@@ -90,7 +92,7 @@ export default function CreateTaskDialog({
   );
 
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
-  const [taskType, setTaskType] = useState(projectId ? "project" : "personal");
+  const [taskType, setTaskType] = useState(forceTaskType || (projectId ? "project" : "personal"));
   const [title, setTitle] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [sectionId, setSectionId] = useState("");
@@ -104,6 +106,10 @@ export default function CreateTaskDialog({
   const isAccountantOnly = roles.includes("accountant") && !roles.some(r => ["admin", "gip"].includes(r));
 
   const taskTypeOptions = useMemo(() => {
+    // When forceTaskType is set (e.g. from Finance page), only show that type
+    if (forceTaskType) {
+      return [{ id: forceTaskType, label: taskTypeLabels[forceTaskType] || forceTaskType }];
+    }
     // When opened from project card (projectId set), don't allow accounting tasks
     if (projectId) {
       const options = [{ id: "project", label: taskTypeLabels.project }];
@@ -124,7 +130,7 @@ export default function CreateTaskDialog({
       options.push({ id: "subcontract", label: taskTypeLabels.subcontract });
     }
     return options;
-  }, [projectId, canCreateAccounting, canCreateProject, canCreateSubcontract]);
+  }, [projectId, forceTaskType, canCreateAccounting, canCreateProject, canCreateSubcontract]);
 
   const showProjectFields = taskType === "project" || taskType === "subcontract";
   const showAccountingAssignee = taskType === "accounting";
@@ -222,11 +228,14 @@ export default function CreateTaskDialog({
   }, [accountingSubtype, accountingProjectId, accountingSubcontractors]);
 
   useEffect(() => {
-    if (projectId) {
+    if (forceTaskType) {
+      setTaskType(forceTaskType);
+      if (projectId) setSelectedProjectId(projectId);
+    } else if (projectId) {
       setSelectedProjectId(projectId);
       setTaskType("project");
     }
-  }, [projectId, open]);
+  }, [projectId, forceTaskType, open]);
 
   useEffect(() => {
     if (taskTypeOptions.length === 0) {
