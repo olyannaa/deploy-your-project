@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import Tasks from "./pages/Tasks";
 import TimeTracking from "./pages/TimeTracking";
 import Approvals from "./pages/Approvals";
+import Finance from "./pages/Finance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -104,6 +105,18 @@ const App = () => (
                   >
                     <Layout>
                       <TimeTracking />
+                    </Layout>
+                  </RequireRole>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/finance"
+              element={
+                <RequireAuth>
+                  <RequireRole allowedRoles={["accountant"]}>
+                    <Layout>
+                      <Finance />
                     </Layout>
                   </RequireRole>
                 </RequireAuth>
