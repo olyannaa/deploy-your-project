@@ -34,7 +34,8 @@ const generateFilledSections = (): ProjectSection[] => {
       id: crypto.randomUUID(),
       startDate: addDays(baseDate, dayOffset),
       plannedEndDate: addDays(baseDate, dayOffset + duration),
-      executor: demoUsers[index % demoUsers.length].name, Math.floor(Math.random() * 100)),
+      executor: demoUsers[index % demoUsers.length].name,
+      notes: "",
       actualEndDate: Math.random() > 0.5 ? addDays(baseDate, dayOffset + duration + Math.floor(Math.random() * 5)) : "",
     });
     dayOffset += Math.floor(duration * 0.3); // Overlap sections
@@ -50,7 +51,8 @@ const generateFilledSections = (): ProjectSection[] => {
       id: crypto.randomUUID(),
       startDate: addDays(baseDate, dayOffset),
       plannedEndDate: addDays(baseDate, dayOffset + duration),
-      executor: demoUsers[(index + 2) % demoUsers.length].name, Math.floor(Math.random() * 80)),
+      executor: demoUsers[(index + 2) % demoUsers.length].name,
+      notes: "",
       actualEndDate: "",
     });
     dayOffset += Math.floor(duration * 0.4);
@@ -66,7 +68,8 @@ const generateFilledSections = (): ProjectSection[] => {
       id: crypto.randomUUID(),
       startDate: addDays(baseDate, dayOffset),
       plannedEndDate: addDays(baseDate, dayOffset + duration),
-      executor: demoUsers[(index + 4) % demoUsers.length].name, Math.floor(Math.random() * 50)),
+      executor: demoUsers[(index + 4) % demoUsers.length].name,
+      notes: "",
       actualEndDate: "",
     });
     dayOffset += Math.floor(duration * 0.5);

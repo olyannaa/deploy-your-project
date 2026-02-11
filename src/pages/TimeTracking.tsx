@@ -291,6 +291,7 @@ export default function TimeTracking() {
         id: "no-project",
         name: "Вне проекта",
         tasks: withoutProject,
+        projectTimeTaskId: null,
       });
     }
 
@@ -655,6 +656,7 @@ export default function TimeTracking() {
       </Tabs>
 
       {pageTab === "time" ? (
+        <>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={prevMonth}>
@@ -949,6 +951,7 @@ export default function TimeTracking() {
           </Table>
         </div>
       </Card>
+        </>
       ) : (
         <Card className="overflow-hidden">
           <div className="p-3">
