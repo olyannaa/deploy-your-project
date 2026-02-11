@@ -4,6 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, MoreHorizontal } from "lucide-react";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -78,6 +86,7 @@ export default function Tasks() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const roles = user?.roles ?? [];
+  const isAccountant = roles.includes("accountant") && !roles.some((role) => ["admin", "gip"].includes(role));
   const isExecutorOnly =
     roles.includes("executor") &&
     !roles.some((role) => ["admin", "gip", "accountant"].includes(role));
@@ -223,6 +232,106 @@ export default function Tasks() {
     }
   };
 
+  if (isAccountant) {
+    // List view for accountant
+    const statusColors: Record<string, string> = {
+      new: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+      in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+      review: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+      done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+    };
+    const statusNames: Record<string, string> = { new: "Новая", in_progress: "В работе", review: "На проверке", done: "Завершено" };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">{tasksTitle}</h1>
+            <p className="text-muted-foreground mt-1">Список задач</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Select value={selectedProject} onValueChange={setSelectedProject}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все проекты</SelectItem>
+                <SelectItem value="none">Вне проекта</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button className="gap-2 shadow-soft" onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Новая задача
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Задача</TableHead>
+                <TableHead>Проект</TableHead>
+                <TableHead>Вид</TableHead>
+                <TableHead>Статус</TableHead>
+                <TableHead>Срок</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tasksView.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Нет задач</TableCell>
+                </TableRow>
+              ) : (
+                tasksView.map((task) => (
+                  <TableRow
+                    key={task.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleTaskClick(task.id)}
+                  >
+                    <TableCell className="font-medium">{task.title}</TableCell>
+                    <TableCell className="text-muted-foreground">{task.project}</TableCell>
+                    <TableCell>
+                      {task.taskType && (
+                        <Badge variant="secondary" className="text-xs">
+                          {taskTypeLabels[task.taskType] ?? task.taskType}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={statusColors[task.status] || ""}>
+                        {statusNames[task.status] || task.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {task.plannedEndDate ? new Date(task.plannedEndDate).toLocaleDateString("ru-RU") : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        <CreateTaskDialog
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+          projectId={selectedProject !== "all" && selectedProject !== "none" ? selectedProject : undefined}
+          onCreated={() => queryClient.invalidateQueries({ queryKey: ["tasks"] })}
+        />
+        <TaskDetailsDialog
+          open={isDetailsDialogOpen}
+          onOpenChange={(open) => { setIsDetailsDialogOpen(open); if (!open) setSelectedTaskId(null); }}
+          taskId={selectedTaskId}
+        />
+      </div>
+    );
+  }
+
+  // Kanban view for other roles
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

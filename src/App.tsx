@@ -114,7 +114,7 @@ const App = () => (
               path="/finance"
               element={
                 <RequireAuth>
-                  <RequireRole allowedRoles={["accountant"]}>
+                  <RequireRole allowedRoles={["admin", "gip", "accountant"]}>
                     <Layout>
                       <Finance />
                     </Layout>

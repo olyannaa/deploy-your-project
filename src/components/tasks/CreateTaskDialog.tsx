@@ -83,7 +83,7 @@ export default function CreateTaskDialog({
     ["admin", "gip"].includes(role),
   );
   const canCreateAccounting = roles.some((role) =>
-    ["admin", "gip"].includes(role),
+    ["admin", "gip", "accountant"].includes(role),
   );
   const canCreateSubcontract = roles.some((role) =>
     ["admin", "gip"].includes(role),
@@ -101,7 +101,10 @@ export default function CreateTaskDialog({
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [accountingProjectId, setAccountingProjectId] = useState("");
 
+  const isAccountantOnly = roles.includes("accountant") && !roles.some(r => ["admin", "gip"].includes(r));
+
   const taskTypeOptions = useMemo(() => {
+    // When opened from project card (projectId set), don't allow accounting tasks
     if (projectId) {
       const options = [{ id: "project", label: taskTypeLabels.project }];
       if (canCreateSubcontract) {
@@ -272,6 +275,10 @@ export default function CreateTaskDialog({
   const handleCreate = async () => {
     if (showProjectFields && !selectedProjectId) {
       toast.error("Выберите проект");
+      return;
+    }
+    if (taskType === "accounting" && !isAccountantOnly && !accountingProjectId) {
+      toast.error("Для бухгалтерской задачи необходимо выбрать проект");
       return;
     }
     if (!title.trim()) {
@@ -501,9 +508,9 @@ export default function CreateTaskDialog({
             </div>
           )}
 
-          {taskType === "accounting" && (accountingSubtype === "salary" || accountingSubtype === "subcontractors") && (
+          {taskType === "accounting" && (accountingSubtype === "salary" || accountingSubtype === "subcontractors" || !isAccountantOnly) && (
             <div className="space-y-2">
-              <Label>Проект (опционально)</Label>
+              <Label>Проект {isAccountantOnly ? "(опционально)" : "*"}</Label>
               <Select value={accountingProjectId || "none"} onValueChange={(v) => {
                 setAccountingProjectId(v === "none" ? "" : v);
                 setSelectedEmployeeIds([]);
@@ -512,7 +519,7 @@ export default function CreateTaskDialog({
                   <SelectValue placeholder="Без привязки к проекту" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Без привязки к проекту</SelectItem>
+                  {isAccountantOnly && <SelectItem value="none">Без привязки к проекту</SelectItem>}
                   {projects.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
