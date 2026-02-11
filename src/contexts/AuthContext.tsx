@@ -1,84 +1,47 @@
-import { createContext, ReactNode, useContext, useEffect, useState } from "react";
-import { apiFetch, refreshSession } from "@/lib/api";
-import { StoredUser, clearTokens, getStoredUser, setStoredUser, setTokens } from "@/lib/auth";
+import { createContext, ReactNode, useContext, useState } from "react";
+import { UserRole } from "@/components/RoleSwitcher";
+
+interface DemoUser {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  roles: string[];
+  canApproveSubcontracts: boolean;
+  departmentIds?: string[];
+  primaryDepartmentId?: string | null;
+}
+
+const demoUsers: DemoUser[] = [
+  { id: "1", fullName: "Администратор", email: "admin@project.com", role: "admin", roles: ["admin"], canApproveSubcontracts: true },
+  { id: "2", fullName: "ГИП", email: "gip@project.com", role: "gip", roles: ["gip"], canApproveSubcontracts: false },
+  { id: "3", fullName: "Исполнитель", email: "executor@project.com", role: "executor", roles: ["executor"], canApproveSubcontracts: false },
+  { id: "4", fullName: "Бухгалтер", email: "accountant@project.com", role: "accountant", roles: ["accountant"], canApproveSubcontracts: false },
+];
 
 interface AuthContextType {
-  user: StoredUser | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  user: DemoUser;
+  switchRole: (role: UserRole) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 }
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<DemoUser>(demoUsers[0]);
 
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<StoredUser | null>(getStoredUser());
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const init = async () => {
-      const stored = getStoredUser();
-      if (stored) {
-        setUser(stored);
-      }
-      try {
-        const refreshed = await refreshSession();
-        if (refreshed?.accessToken) {
-          const nextUser = refreshed.user ?? stored ?? null;
-          if (nextUser) {
-            setStoredUser(nextUser);
-          }
-          setUser(nextUser);
-        } else {
-          clearTokens();
-          setStoredUser(null);
-          setUser(null);
-        }
-      } catch {
-        clearTokens();
-        setStoredUser(null);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    init();
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    const data = await apiFetch<{
-      accessToken: string;
-      refreshToken: string;
-      user: StoredUser;
-    }>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    setTokens(data.accessToken, data.refreshToken);
-    setStoredUser(data.user);
-    setUser(data.user);
-  };
-
-  const logout = () => {
-    clearTokens();
-    setStoredUser(null);
-    setUser(null);
+  const switchRole = (role: UserRole) => {
+    const found = demoUsers.find((u) => u.role === role);
+    if (found) setUser(found);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, switchRole }}>
       {children}
     </AuthContext.Provider>
   );

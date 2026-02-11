@@ -1,4 +1,4 @@
-﻿import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import {
@@ -17,6 +17,7 @@ import { RoleProvider } from "@/contexts/RoleContext";
 import innerLogo from "@/assets/inner-logo.svg";
 import { useAuth } from "@/contexts/AuthContext";
 import ThemeToggle from "./ThemeToggle";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface NavigationItem {
   name: string;
@@ -27,31 +28,20 @@ interface NavigationItem {
 
 const allNavigation: NavigationItem[] = [
   { name: "Проекты", href: "/projects", icon: FolderKanban },
-  {
-    name: "Задачи",
-    href: "/tasks",
-    icon: LayoutDashboard,
-    roles: ["admin", "gip", "executor", "accountant"],
-  },
-  {
-    name: "Заявки",
-    href: "/approvals",
-    icon: ClipboardCheck,
-    roles: ["admin"],
-  },
-  {
-    name: "Учет времени",
-    href: "/time-tracking",
-    icon: Clock,
-    roles: ["admin", "gip", "executor", "accountant"],
-  },
-  {
-    name: "Структура организации",
-    href: "/organization",
-    icon: Building2,
-    roles: ["admin", "accountant"],
-  },
+  { name: "Задачи", href: "/tasks", icon: LayoutDashboard, roles: ["admin", "gip", "executor", "accountant"] },
+  { name: "Заявки", href: "/approvals", icon: ClipboardCheck, roles: ["admin"] },
+  { name: "Учет времени", href: "/time-tracking", icon: Clock, roles: ["admin", "gip", "executor", "accountant"] },
+  { name: "Структура организации", href: "/organization", icon: Building2, roles: ["admin", "accountant"] },
 ];
+
+const roleLabels: Record<UserRole, string> = {
+  admin: "Администратор",
+  gip: "ГИП",
+  executor: "Исполнитель",
+  accountant: "Бухгалтер",
+};
+
+const roleOptions: UserRole[] = ["admin", "gip", "executor", "accountant"];
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -59,43 +49,24 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, switchRole } = useAuth();
 
   const currentRole = useMemo<UserRole>(() => {
-    const roles = user?.roles || [];
-    if (roles.includes("admin")) {
-      return "admin";
-    }
+    const roles = user.roles;
+    if (roles.includes("admin")) return "admin";
     if (roles.includes("gip")) return "gip";
     if (roles.includes("accountant")) return "accountant";
     return "executor";
-  }, [user?.roles]);
+  }, [user.roles]);
 
-  const canApproveSubcontracts = Boolean(user?.canApproveSubcontracts);
-
-  const currentUserName = user?.fullName ?? "Пользователь";
-
-  const roleLabels: Record<UserRole, string> = {
-    admin: "Администратор",
-    gip: "ГИП",
-    executor: "Исполнитель",
-    accountant: "Бухгалтер",
-  };
+  const canApproveSubcontracts = user.canApproveSubcontracts;
+  const currentUserName = user.fullName;
 
   const navigation = allNavigation.filter((item) => {
-    if (item.href === "/approvals") {
-      return canApproveSubcontracts;
-    }
+    if (item.href === "/approvals") return canApproveSubcontracts;
     return !item.roles || item.roles.includes(currentRole);
   });
-
-  const handleLogout = () => {
-    logout();
-    setIsMobileMenuOpen(false);
-    navigate("/login", { replace: true });
-  };
 
   return (
     <RoleProvider currentRole={currentRole} currentUserName={currentUserName}>
@@ -113,7 +84,7 @@ export function Layout({ children }: LayoutProps) {
           </Button>
         </div>
 
-        {/* Sidebar - Desktop and Mobile */}
+        {/* Sidebar */}
         <aside
           className={cn(
             "fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r-2 border-sidebar-border shadow-large transition-transform duration-300",
@@ -122,24 +93,27 @@ export function Layout({ children }: LayoutProps) {
           )}
         >
           <div className="flex h-full flex-col pt-16 lg:pt-0">
-            {/* Logo - Desktop Only */}
             <div className="hidden lg:flex h-16 items-center border-b-2 border-sidebar-border px-6">
               <img src={innerLogo} alt="Logo" className="h-8 w-auto" />
             </div>
 
+            {/* Role Switcher */}
             <div className="p-4 border-b-2 border-sidebar-border">
               <div className="rounded-lg border border-border bg-card px-3 py-2">
-                <div className="text-xs text-muted-foreground">Текущий пользователь</div>
-                <div className="text-sm font-medium text-foreground">{currentUserName}</div>
-                <div className="text-xs text-muted-foreground">{roleLabels[currentRole] ?? currentRole}</div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 w-full justify-center"
-                  onClick={handleLogout}
-                >
-                  Выйти
-                </Button>
+                <div className="text-xs text-muted-foreground mb-1">Переключить роль (демо)</div>
+                <Select value={currentRole} onValueChange={(v) => switchRole(v as UserRole)}>
+                  <SelectTrigger className="h-9 border-border bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleOptions.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        <div className="font-medium">{roleLabels[role]}</div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="mt-1 text-xs text-muted-foreground">{user.email}</div>
               </div>
             </div>
 
@@ -171,7 +145,6 @@ export function Layout({ children }: LayoutProps) {
               })}
             </nav>
 
-            {/* Settings */}
             <div className="border-t-2 border-sidebar-border p-4">
               <Link
                 to="/settings"
@@ -190,7 +163,6 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </aside>
 
-        {/* Overlay for mobile */}
         {isMobileMenuOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-30 lg:hidden"
@@ -198,7 +170,6 @@ export function Layout({ children }: LayoutProps) {
           />
         )}
 
-        {/* Main Content */}
         <main className="lg:ml-64 flex-1 w-full min-w-0 pt-16 lg:pt-0">
           <div className="container mx-auto p-4 sm:p-6 md:p-8">
             <div className="mb-4 flex justify-end">
