@@ -111,7 +111,7 @@ export default function ProjectDetails() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/projects")}> 
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}> 
             <ArrowLeft className="h-4 w-4 mr-2" />
             Назад к проектам
           </Button>
@@ -131,10 +131,10 @@ export default function ProjectDetails() {
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/projects")}> 
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Назад
-            </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}> 
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Назад
+          </Button>
           </div>
           <h1 className="text-3xl font-bold text-foreground">{projectView.name}</h1>
           <p className="text-muted-foreground">{projectView.description}</p>
