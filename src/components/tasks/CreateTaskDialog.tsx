@@ -366,12 +366,12 @@ export default function CreateTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Новая задача</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
           <div className="space-y-2">
             <Label>Тип задачи *</Label>
             <Select value={taskType} onValueChange={setTaskType}>
