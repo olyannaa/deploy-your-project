@@ -329,6 +329,11 @@ export default function Finance() {
   };
 
   const getProjectAccountantTasks = (projectId: string) => {
+    if (projectId === "__no_project__") {
+      return allTasks.filter(
+        (t: any) => t.taskType === "accounting" && !t.projectId,
+      );
+    }
     return allTasks.filter(
       (t: any) => t.projectId === projectId && t.taskType === "accounting",
     );
@@ -532,28 +537,127 @@ export default function Finance() {
                   </>
                 );
               })}
-              {/* Non-project accounting tasks row */}
+              {/* Non-project accounting tasks rows */}
               {(() => {
                 const nonProjectTasks = allTasks.filter(
                   (t: any) => t.taskType === "accounting" && !t.projectId
                 );
                 if (nonProjectTasks.length === 0) return null;
+                const npId = "__no_project__";
+                const npPaid = getTotalPaid(npId);
+                const npIncome = getTotalIncome(npId);
                 return (
-                  <TableRow className="border-b-2 border-border bg-muted/10">
-                    <TableCell className="sticky left-0 z-10 bg-muted/10 font-medium italic text-muted-foreground" colSpan={6}>
-                      <div className="flex items-center gap-2">
-                        <span>Вне проекта</span>
-                        <span className="text-xs font-normal">({nonProjectTasks.length} задач)</span>
-                      </div>
-                    </TableCell>
-                    {weeks.map((_, wi) => (
-                      <TableCell key={wi} className="p-1 border-l border-border">
-                        <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">
-                          —
+                  <>
+                    <TableRow>
+                      <TableCell className="sticky left-0 z-10 bg-card font-medium italic" rowSpan={2}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Вне проекта</span>
+                          <span className="text-xs font-normal text-muted-foreground">({nonProjectTasks.length})</span>
+                          {isAccountant && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              title="Создать задачу вне проекта"
+                              onClick={(e) => { e.stopPropagation(); setCreateTaskProjectId(undefined); setIsCreateTaskOpen(true); }}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
-                    ))}
-                  </TableRow>
+                      <TableCell className="text-center tabular-nums text-muted-foreground" rowSpan={2}>—</TableCell>
+                      <TableCell className="text-center tabular-nums text-green-600 dark:text-green-400" rowSpan={2}>
+                        {npIncome > 0 ? `${npIncome.toLocaleString("ru-RU")} ₽` : "—"}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-primary" rowSpan={2}>
+                        {npPaid > 0 ? `${npPaid.toLocaleString("ru-RU")} ₽` : "—"}
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground" rowSpan={2}>—</TableCell>
+                      <TableCell className="text-center tabular-nums text-muted-foreground" rowSpan={2}>—</TableCell>
+                      {weeks.map((_, wi) => {
+                        const entries = payments[npId]?.[wi] || [];
+                        const cellTotal = getCellTotal(npId, wi);
+                        return (
+                          <TableCell
+                            key={wi}
+                            className="p-1 border-l border-border transition-colors"
+                            onClick={() => !isReadOnly && openPaymentDialog(npId, wi)}
+                          >
+                            {entries.length > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-destructive">
+                                    −{cellTotal.toLocaleString("ru-RU")}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[300px]">
+                                  <p className="font-semibold text-xs mb-1">Расходы:</p>
+                                  <div className="space-y-1">
+                                    {entries.map((e, idx) => (
+                                      <div key={idx} className="flex justify-between gap-4 text-xs">
+                                        <span className="truncate">
+                                          {e.reason ? reasonLabels[e.reason] || e.reason : ""}{" "}
+                                          {e.taskTitle || ""}
+                                        </span>
+                                        <span className="font-medium whitespace-nowrap">
+                                          {formatCurrency(e.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
+                                —
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                    <TableRow className="border-b-2 border-border">
+                      {weeks.map((_, wi) => {
+                        const entries = incomes[npId]?.[wi] || [];
+                        const cellTotal = getIncomeCellTotal(npId, wi);
+                        return (
+                          <TableCell
+                            key={wi}
+                            className="p-1 border-l border-border transition-colors"
+                            onClick={() => !isReadOnly && openIncomeDialog(npId, wi)}
+                          >
+                            {entries.length > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-green-600 dark:text-green-400">
+                                    +{cellTotal.toLocaleString("ru-RU")}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[300px]">
+                                  <p className="font-semibold text-xs mb-1">Приходы:</p>
+                                  <div className="space-y-1">
+                                    {entries.map((e, idx) => (
+                                      <div key={idx} className="flex justify-between gap-4 text-xs">
+                                        <span className="truncate">{e.taskTitle || "Приход"}</span>
+                                        <span className="font-medium whitespace-nowrap">
+                                          {formatCurrency(e.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
+                                —
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  </>
                 );
               })()}
             </TableBody>

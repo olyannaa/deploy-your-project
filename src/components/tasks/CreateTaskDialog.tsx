@@ -141,7 +141,7 @@ export default function CreateTaskDialog({
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: () => apiFetch<ProjectOption[]>("/projects"),
-    enabled: open && !projectId,
+    enabled: open,
   });
 
   const { data: projectDetails } = useQuery({
@@ -230,7 +230,10 @@ export default function CreateTaskDialog({
   useEffect(() => {
     if (forceTaskType) {
       setTaskType(forceTaskType);
-      if (projectId) setSelectedProjectId(projectId);
+      if (projectId) {
+        setSelectedProjectId(projectId);
+        setAccountingProjectId(projectId);
+      }
     } else if (projectId) {
       setSelectedProjectId(projectId);
       setTaskType("project");
@@ -500,6 +503,34 @@ export default function CreateTaskDialog({
 
           {taskType === "accounting" && (
             <div className="space-y-2">
+              <Label>Проект {isAccountantOnly ? "(опционально)" : "*"}</Label>
+              {projectId ? (
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+                  Проект: <span className="font-medium text-foreground">{projectName || "—"}</span>
+                </div>
+              ) : (
+                <Select value={accountingProjectId || "none"} onValueChange={(v) => {
+                  setAccountingProjectId(v === "none" ? "" : v);
+                  setSelectedEmployeeIds([]);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Без привязки к проекту" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isAccountantOnly && <SelectItem value="none">Без привязки к проекту</SelectItem>}
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          {taskType === "accounting" && (
+            <div className="space-y-2">
               <Label>Вид задачи</Label>
               <Select value={accountingSubtype} onValueChange={(v) => {
                 setAccountingSubtype(v);
@@ -512,28 +543,6 @@ export default function CreateTaskDialog({
                   {accountingSubtypeOptions.map((opt) => (
                     <SelectItem key={opt.id} value={opt.id}>
                       {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {taskType === "accounting" && (accountingSubtype === "salary" || accountingSubtype === "subcontractors" || !isAccountantOnly) && (
-            <div className="space-y-2">
-              <Label>Проект {isAccountantOnly ? "(опционально)" : "*"}</Label>
-              <Select value={accountingProjectId || "none"} onValueChange={(v) => {
-                setAccountingProjectId(v === "none" ? "" : v);
-                setSelectedEmployeeIds([]);
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Без привязки к проекту" />
-                </SelectTrigger>
-                <SelectContent>
-                  {isAccountantOnly && <SelectItem value="none">Без привязки к проекту</SelectItem>}
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
