@@ -372,21 +372,23 @@ export default function CreateTaskDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
-          <div className="space-y-2">
-            <Label>Тип задачи *</Label>
-            <Select value={taskType} onValueChange={setTaskType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Выберите тип" />
-              </SelectTrigger>
-              <SelectContent>
-                {taskTypeOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!forceTaskType && (
+            <div className="space-y-2">
+              <Label>Тип задачи *</Label>
+              <Select value={taskType} onValueChange={setTaskType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите тип" />
+                </SelectTrigger>
+                <SelectContent>
+                  {taskTypeOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {!projectId && showProjectFields && (
             <div className="space-y-2">

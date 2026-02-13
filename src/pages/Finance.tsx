@@ -420,7 +420,7 @@ export default function Finance() {
                           >
                             {project.name}
                           </button>
-                          {isAdminOrGip && (
+                          {(isAdminOrGip || isAccountant) && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -532,6 +532,30 @@ export default function Finance() {
                   </>
                 );
               })}
+              {/* Non-project accounting tasks row */}
+              {(() => {
+                const nonProjectTasks = allTasks.filter(
+                  (t: any) => t.taskType === "accounting" && !t.projectId
+                );
+                if (nonProjectTasks.length === 0) return null;
+                return (
+                  <TableRow className="border-b-2 border-border bg-muted/10">
+                    <TableCell className="sticky left-0 z-10 bg-muted/10 font-medium italic text-muted-foreground" colSpan={6}>
+                      <div className="flex items-center gap-2">
+                        <span>Вне проекта</span>
+                        <span className="text-xs font-normal">({nonProjectTasks.length} задач)</span>
+                      </div>
+                    </TableCell>
+                    {weeks.map((_, wi) => (
+                      <TableCell key={wi} className="p-1 border-l border-border">
+                        <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">
+                          —
+                        </div>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })()}
             </TableBody>
           </Table>
         </div>

@@ -7,8 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Eye } from "lucide-react";
 
 interface EmployeeEntry {
   id: string;
@@ -127,9 +125,16 @@ export default function AccountingEmployeeSelect({
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium truncate">
+                  <button
+                    type="button"
+                    className="text-sm font-medium truncate text-primary hover:underline cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTimesheetUserId(emp.id);
+                    }}
+                  >
                     {emp.fullName}
-                  </span>
+                  </button>
                   {emp.contractorName && (
                     <Badge variant="secondary" className="text-[10px] shrink-0">
                       контрагент
@@ -138,21 +143,9 @@ export default function AccountingEmployeeSelect({
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>Ставка: {formatRate(emp)}</span>
-                  <span>Дней: {getWorkDays(emp)}</span>
+                  <span className="font-medium">{getWorkDays(emp)} раб. дн.</span>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setTimesheetUserId(emp.id);
-                }}
-                title="Табель рабочего времени"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
             </div>
             ))}
           </>
