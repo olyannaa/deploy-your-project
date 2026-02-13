@@ -115,7 +115,7 @@ export default function TimeTracking() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [projectTimeTasks, setProjectTimeTasks] = useState<Record<string, string>>({});
   const [taskTab, setTaskTab] = useState<"main" | "subcontract">("main");
-  const [pageTab, setPageTab] = useState<"time" | "economics">("time");
+  const [pageTab, setPageTab] = useState<"time">("time");
 
   const isCurrentMonth = currentYear === today.getFullYear() && currentMonth === today.getMonth();
   const isEditable = isCurrentMonth;
@@ -176,7 +176,13 @@ export default function TimeTracking() {
 
   const { data: tasksData = [] } = useQuery({
     queryKey: ["time-tracking-tasks", user?.id],
-    queryFn: () => apiFetch<any[]>("/tasks?forTimeTracking=true"),
+    queryFn: () => {
+      const params = new URLSearchParams({ forTimeTracking: "true" });
+      if (isAccountantOnly && user?.id) {
+        params.set("assigneeId", user.id);
+      }
+      return apiFetch<any[]>(`/tasks?${params.toString()}`);
+    },
     enabled: !!user?.id,
   });
 
@@ -646,18 +652,12 @@ export default function TimeTracking() {
         </div>
       </div>
 
-      <Tabs value={pageTab} onValueChange={(value) => setPageTab(value as "time" | "economics")} className="shrink-0">
-        <TabsList className="h-9">
-          <TabsTrigger value="time" className="px-4">Табель</TabsTrigger>
-          {(roles.includes("accountant") || isAdminOrGip) && (
-            <TabsTrigger value="economics" className="px-4">Экономический анализ</TabsTrigger>
-          )}
-        </TabsList>
-      </Tabs>
+      {/* Economics tab removed */}
 
       {pageTab === "time" ? (
         <>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
+
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={prevMonth}>
             <ChevronLeft className="h-4 w-4" />
@@ -952,54 +952,7 @@ export default function TimeTracking() {
         </div>
       </Card>
         </>
-      ) : (
-        <Card className="overflow-hidden">
-          <div className="p-3">
-            <h2 className="text-lg font-semibold mb-2">Экономический анализ</h2>
-            <div className="overflow-x-auto">
-              <Table className="text-sm min-w-max md:min-w-full">
-                <TableHeader>
-                  <TableRow className="bg-muted">
-                    <TableHead className="p-2">Название проекта</TableHead>
-                    <TableHead className="p-2">Сумма по договору</TableHead>
-                    <TableHead className="p-2">Оплачено</TableHead>
-                    <TableHead className="p-2">Остаток</TableHead>
-                    <TableHead className="p-2">Дней на выполнение</TableHead>
-                    {weeksForSixMonths.map((w) => (
-                      <TableHead key={w.id} className="text-center p-2 min-w-[90px]">{w.label}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {projects.map((project) => {
-                    const start = project.startDate ? new Date(project.startDate) : null;
-                    const end = project.endDate ? new Date(project.endDate) : null;
-                    const daysCount = start && end ? Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) : "";
-                    return (
-                      <TableRow key={project.id}>
-                        <TableCell className="p-2">
-                          <a href={`/projects/${project.id}?tab=analytics`} className="text-primary hover:underline">
-                            {project.name}
-                          </a>
-                        </TableCell>
-                        <TableCell className="p-2">{project.budget ?? ""}</TableCell>
-                        <TableCell className="p-2"></TableCell>
-                        <TableCell className="p-2"></TableCell>
-                        <TableCell className="p-2">{daysCount}</TableCell>
-                        {weeksForSixMonths.map((w) => (
-                          <TableCell key={w.id} className="p-1">
-                            <input type="number" className="w-full text-right text-sm p-1 bg-transparent" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </Card>
-      )}
+      ) : null}
     </div>
   );
 }
