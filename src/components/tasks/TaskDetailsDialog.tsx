@@ -155,10 +155,8 @@ export default function TaskDetailsDialog({
   const handleSavePayment = async () => {
     const total = computeTotal();
     if (total <= 0) return;
-    if (!task?.projectId) {
-      toast.error("Выплаты возможны только для задач с привязкой к проекту");
-      return;
-    }
+
+    const paymentKey = task?.projectId || "__no_project__";
 
     // Find current week index
     const weeks = generateWeeks();
@@ -183,11 +181,11 @@ export default function TaskDetailsDialog({
     };
 
     const gp = getGlobalPayments();
-    const existing = gp[task.projectId]?.[weekIndex] || [];
+    const existing = gp[paymentKey]?.[weekIndex] || [];
     const next = {
       ...gp,
-      [task.projectId]: {
-        ...gp[task.projectId],
+      [paymentKey]: {
+        ...gp[paymentKey],
         [weekIndex]: [...existing, entry],
       },
     };
