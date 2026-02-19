@@ -420,38 +420,6 @@ export default function Finance() {
     setIsCreateTaskOpen(true);
   };
 
-  // Compute salary distribution per project for справочные rows
-  const salaryByProject = useMemo(() => {
-    const npPayments = payments["__no_project__"] || {};
-    const result: Record<string, number> = {};
-    // Demo time distribution (same as in SalaryDistributionTab)
-    const demoTimeDist: Record<string, Record<string, number>> = {
-      "user-1": { "proj-1": 14, "proj-2": 5, "proj-3": 3 },
-      "user-2": { "proj-1": 10, "proj-3": 8 },
-      "user-3": { "proj-1": 12, "proj-2": 8 },
-      "user-4": { "proj-2": 9, "proj-4": 6 },
-      "user-7": { "proj-1": 6, "proj-2": 7, "proj-4": 5 },
-      "user-8": { "proj-3": 10, "proj-4": 8 },
-    };
-
-    for (const entries of Object.values(npPayments)) {
-      for (const entry of entries) {
-        if (entry.reason !== "salary" || !entry.employeePayments) continue;
-        for (const ep of entry.employeePayments) {
-          const timeDist = demoTimeDist[ep.id];
-          if (!timeDist) continue;
-          const totalDays = Object.values(timeDist).reduce((s, d) => s + d, 0);
-          if (totalDays === 0) continue;
-          for (const [projId, days] of Object.entries(timeDist)) {
-            const proportion = days / totalDays;
-            const amount = Math.round(ep.amount * proportion);
-            result[projId] = (result[projId] || 0) + amount;
-          }
-        }
-      }
-    }
-    return result;
-  }, [payments]);
 
   return (
     <TooltipProvider>
@@ -606,7 +574,7 @@ export default function Finance() {
                       })}
                     </TableRow>
                     {/* Income row */}
-                    <TableRow key={`${project.id}-income`} className={salaryByProject[project.id] ? "" : "border-b-2 border-border"}>
+                    <TableRow key={`${project.id}-income`} className="border-b-2 border-border">
                       {weeks.map((_, wi) => {
                         const entries = incomes[project.id]?.[wi] || [];
                         const cellTotal = getIncomeCellTotal(project.id, wi);
@@ -646,25 +614,6 @@ export default function Finance() {
                         );
                       })}
                     </TableRow>
-                    {/* Справочная строка ЗП — не считается в итого */}
-                    {salaryByProject[project.id] && salaryByProject[project.id] > 0 && (
-                      <TableRow key={`${project.id}-salary-info`} className="border-b-2 border-border">
-                        <TableCell className="sticky left-0 z-10 bg-card text-xs text-muted-foreground italic">
-                          в т.ч. ЗП (справочно)
-                        </TableCell>
-                        <TableCell />
-                        <TableCell />
-                        <TableCell className="text-center tabular-nums text-xs text-muted-foreground italic">
-                          {formatCurrency(salaryByProject[project.id])}
-                        </TableCell>
-                        <TableCell />
-                        {weeks.map((_, wi) => (
-                          <TableCell key={wi} className="p-1 border-l border-border">
-                            <div className="h-7 min-w-[70px]" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    )}
                   </>
                 );
               })}

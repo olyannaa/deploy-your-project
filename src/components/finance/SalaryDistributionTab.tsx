@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -8,58 +8,58 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { mockEmployees } from "@/data/mockData";
-import { getGlobalPayments, type PaymentEntry } from "@/pages/Finance";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { mockEmployees, mockDepartments } from "@/data/mockData";
+import { Search } from "lucide-react";
 
 /**
- * Demo data: how many days each employee spent on each project in the current period.
+ * Demo: days each employee spent on each project per month (YYYY-MM key).
  * In production this comes from time-tracking entries.
  */
-const demoTimeDistribution: Record<string, Record<string, number>> = {
-  "user-1": { "proj-1": 14, "proj-2": 5, "proj-3": 3 },
-  "user-2": { "proj-1": 10, "proj-3": 8 },
-  "user-3": { "proj-1": 12, "proj-2": 8 },
-  "user-4": { "proj-2": 9, "proj-4": 6 },
-  "user-5": {},
-  "user-6": { "proj-1": 0 }, // contract worker, attached to proj-1
-  "user-7": { "proj-1": 6, "proj-2": 7, "proj-4": 5 },
-  "user-8": { "proj-3": 10, "proj-4": 8 },
+const demoMonthlyTime: Record<string, Record<string, Record<string, number>>> = {
+  "user-1": {
+    "2026-01": { "proj-1": 12, "proj-2": 4, "proj-3": 2 },
+    "2026-02": { "proj-1": 14, "proj-2": 5, "proj-3": 3 },
+  },
+  "user-2": {
+    "2026-01": { "proj-1": 8, "proj-3": 6 },
+    "2026-02": { "proj-1": 10, "proj-3": 8 },
+  },
+  "user-3": {
+    "2026-01": { "proj-1": 10, "proj-2": 6 },
+    "2026-02": { "proj-1": 12, "proj-2": 8 },
+  },
+  "user-4": {
+    "2026-01": { "proj-2": 7, "proj-4": 5 },
+    "2026-02": { "proj-2": 9, "proj-4": 6 },
+  },
+  "user-6": {
+    "2026-01": { "proj-1": 0 },
+    "2026-02": { "proj-1": 0 },
+  },
+  "user-7": {
+    "2026-01": { "proj-1": 5, "proj-2": 6, "proj-4": 4 },
+    "2026-02": { "proj-1": 6, "proj-2": 7, "proj-4": 5 },
+  },
+  "user-8": {
+    "2026-01": { "proj-3": 8, "proj-4": 7 },
+    "2026-02": { "proj-3": 10, "proj-4": 8 },
+  },
 };
 
 const projectNames: Record<string, string> = {
   "proj-1": "Агропромышленный комплекс «Рассвет»",
-  "proj-2": "Парковый ансамбль «Зелёный квартал»",
-  "proj-3": "Бизнес-центр «Восток»",
-  "proj-4": "Школа на 1100 мест",
+  "proj-2": "Жилой комплекс «Парковый»",
+  "proj-3": "Логистический центр «Восток»",
+  "proj-4": "Школа на 550 мест",
 };
-
-interface EmployeeDistribution {
-  employee: {
-    id: string;
-    name: string;
-    isContract: boolean;
-    dailyRate: number;
-    contractRate: number | null;
-  };
-  totalDays: number;
-  totalAccrued: number;
-  totalPaid: number;
-  projects: {
-    projectId: string;
-    projectName: string;
-    days: number;
-    proportion: number;
-    accrued: number;
-    paid: number;
-  }[];
-  payments: {
-    date: string;
-    amount: number;
-    type: string;
-    weekIndex: number;
-    projectBreakdown: { projectId: string; projectName: string; amount: number }[];
-  }[];
-}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -69,283 +69,258 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-/** Extract all salary payments from globalPayments, grouped by employee */
-function getSalaryPaymentsByEmployee(): Record<string, { amount: number; weekIndex: number; taskTitle: string }[]> {
-  const payments = getGlobalPayments();
-  const npPayments = payments["__no_project__"] || {};
-  const result: Record<string, { amount: number; weekIndex: number; taskTitle: string }[]> = {};
-
-  for (const [wi, entries] of Object.entries(npPayments)) {
-    for (const entry of entries) {
-      if (entry.reason !== "salary" || !entry.employeePayments) continue;
-      for (const ep of entry.employeePayments) {
-        if (!result[ep.id]) result[ep.id] = [];
-        result[ep.id].push({
-          amount: ep.amount,
-          weekIndex: Number(wi),
-          taskTitle: entry.taskTitle || "Выплата ЗП",
-        });
-      }
-    }
+function getMonthOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  const options: { value: string; label: string }[] = [];
+  for (let i = -3; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+    options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
   }
-  return result;
+  return options;
 }
 
-/** Map weekIndex to approximate date label */
-function weekIndexToDate(weekIndex: number): string {
+function getCurrentMonth(): string {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const halfStart = month < 6 ? new Date(year, 0, 1) : new Date(year, 6, 1);
-  const date = new Date(halfStart);
-  date.setDate(date.getDate() + weekIndex * 7);
-  return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export default function SalaryDistributionTab() {
-  const distributions = useMemo<EmployeeDistribution[]>(() => {
-    const salaryPayments = getSalaryPaymentsByEmployee();
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("all");
 
+  const monthOptions = useMemo(() => getMonthOptions(), []);
+
+  const employees = useMemo(() => {
     return mockEmployees
       .filter((emp) => !emp.roles.includes("accountant"))
       .map((emp) => {
         const isContract = !!emp.contractRate;
-        const timeData = demoTimeDistribution[emp.id] || {};
+        const timeData = demoMonthlyTime[emp.id]?.[selectedMonth] || {};
         const totalDays = Object.values(timeData).reduce((s, d) => s + d, 0);
-
-        // Calculate accrued amount
         const totalAccrued = isContract
           ? (emp.contractRate || 0)
           : totalDays * (emp.dailyRate || 0);
 
-        // Build project breakdown
         const projects = Object.entries(timeData)
           .filter(([, days]) => days > 0 || isContract)
           .map(([projId, days]) => {
-            const proportion = isContract ? 1 : (totalDays > 0 ? days / totalDays : 0);
+            const proportion = isContract ? 1 : totalDays > 0 ? days / totalDays : 0;
             return {
               projectId: projId,
               projectName: projectNames[projId] || projId,
               days,
               proportion,
               accrued: isContract ? (emp.contractRate || 0) : days * (emp.dailyRate || 0),
-              paid: 0, // calculated below
             };
           });
 
-        // Get payments for this employee
-        const empPayments = salaryPayments[emp.id] || [];
-        const totalPaid = empPayments.reduce((s, p) => s + p.amount, 0);
-
-        // Distribute payments proportionally across projects
-        const payments = empPayments.map((p) => ({
-          date: weekIndexToDate(p.weekIndex),
-          amount: p.amount,
-          type: p.taskTitle.toLowerCase().includes("аванс") ? "Аванс" : "ЗП",
-          weekIndex: p.weekIndex,
-          projectBreakdown: projects.map((proj) => ({
-            projectId: proj.projectId,
-            projectName: proj.projectName,
-            amount: Math.round(p.amount * proj.proportion),
-          })),
-        }));
-
-        // Sum paid per project
-        for (const payment of payments) {
-          for (const pb of payment.projectBreakdown) {
-            const proj = projects.find((p) => p.projectId === pb.projectId);
-            if (proj) proj.paid += pb.amount;
-          }
-        }
+        const department = mockDepartments.find((d) => d.id === emp.primaryDepartmentId);
 
         return {
-          employee: {
-            id: emp.id,
-            name: emp.fullName,
-            isContract,
-            dailyRate: emp.dailyRate || 0,
-            contractRate: emp.contractRate,
-          },
+          id: emp.id,
+          name: emp.fullName,
+          isContract,
+          dailyRate: emp.dailyRate || 0,
+          contractRate: emp.contractRate,
+          departmentId: emp.primaryDepartmentId,
+          departmentName: department?.name || "—",
           totalDays,
           totalAccrued,
-          totalPaid,
           projects,
-          payments,
         };
       })
-      .filter((d) => d.totalAccrued > 0);
-  }, []);
+      .filter((e) => e.totalAccrued > 0);
+  }, [selectedMonth]);
+
+  // Apply filters
+  const filtered = useMemo(() => {
+    let result = employees;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((e) => e.name.toLowerCase().includes(q));
+    }
+    if (selectedDepartment !== "all") {
+      result = result.filter((e) => e.departmentId === selectedDepartment);
+    }
+    return result;
+  }, [employees, searchQuery, selectedDepartment]);
 
   // Project summary
   const projectSummary = useMemo(() => {
-    const summary: Record<string, { name: string; accrued: number; paid: number }> = {};
-    for (const dist of distributions) {
-      for (const proj of dist.projects) {
+    const summary: Record<string, { name: string; accrued: number; days: number }> = {};
+    for (const emp of filtered) {
+      for (const proj of emp.projects) {
         if (!summary[proj.projectId]) {
-          summary[proj.projectId] = { name: proj.projectName, accrued: 0, paid: 0 };
+          summary[proj.projectId] = { name: proj.projectName, accrued: 0, days: 0 };
         }
         summary[proj.projectId].accrued += proj.accrued;
-        summary[proj.projectId].paid += proj.paid;
+        summary[proj.projectId].days += proj.days;
       }
     }
     return summary;
-  }, [distributions]);
+  }, [filtered]);
 
-  const grandTotalAccrued = distributions.reduce((s, d) => s + d.totalAccrued, 0);
-  const grandTotalPaid = distributions.reduce((s, d) => s + d.totalPaid, 0);
+  const grandTotal = filtered.reduce((s, e) => s + e.totalAccrued, 0);
+  const grandDays = filtered.reduce((s, e) => s + e.totalDays, 0);
 
   return (
-    <div className="space-y-6">
-      {/* Main distribution table */}
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Месяц" />
+          </SelectTrigger>
+          <SelectContent>
+            {monthOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+          <SelectTrigger className="w-[240px]">
+            <SelectValue placeholder="Подразделение" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все подразделения</SelectItem>
+            {mockDepartments.map((d) => (
+              <SelectItem key={d.id} value={d.id}>
+                {d.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Поиск по имени…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      {/* Main table */}
       <div className="rounded-lg border border-border overflow-auto bg-card">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-[220px]">Сотрудник</TableHead>
+              <TableHead className="min-w-[180px]">Подразделение</TableHead>
               <TableHead className="text-center min-w-[80px]">Тип</TableHead>
               <TableHead className="min-w-[200px]">Проект</TableHead>
               <TableHead className="text-right min-w-[80px]">Дней</TableHead>
+              <TableHead className="text-right min-w-[80px]">Доля</TableHead>
               <TableHead className="text-right min-w-[100px]">Ставка</TableHead>
-              <TableHead className="text-right min-w-[110px]">Начислено</TableHead>
-              <TableHead className="text-right min-w-[110px]">Выплачено</TableHead>
-              <TableHead className="text-right min-w-[110px]">Остаток</TableHead>
-              <TableHead className="text-center min-w-[90px]">Дата</TableHead>
-              <TableHead className="text-center min-w-[80px]">Вид</TableHead>
+              <TableHead className="text-right min-w-[120px]">Начислено</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {distributions.map((dist) => {
-              const rowCount = dist.projects.length + dist.payments.length + 1;
-              const remaining = dist.totalAccrued - dist.totalPaid;
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  Нет данных за выбранный период
+                </TableCell>
+              </TableRow>
+            )}
+            {filtered.map((emp) => (
+              <>
+                {/* Employee summary row */}
+                <TableRow key={emp.id} className="bg-muted/30 font-semibold border-t-2 border-border">
+                  <TableCell>{emp.name}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{emp.departmentName}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={emp.isContract ? "secondary" : "outline"} className="text-xs">
+                      {emp.isContract ? "Контракт" : "Штат"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell />
+                  <TableCell className="text-right">{emp.isContract ? "—" : emp.totalDays}</TableCell>
+                  <TableCell className="text-right">100%</TableCell>
+                  <TableCell className="text-right">
+                    {emp.isContract
+                      ? formatCurrency(emp.contractRate || 0)
+                      : `${formatCurrency(emp.dailyRate)}/день`}
+                  </TableCell>
+                  <TableCell className="text-right">{formatCurrency(emp.totalAccrued)}</TableCell>
+                </TableRow>
 
-              return (
-                <> 
-                  {/* Employee summary row */}
-                  <TableRow key={dist.employee.id} className="bg-muted/30 font-semibold border-t-2 border-border">
-                    <TableCell>{dist.employee.name}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={dist.employee.isContract ? "secondary" : "outline"} className="text-xs">
-                        {dist.employee.isContract ? "Контракт" : "Штат"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell />
-                    <TableCell className="text-right">{dist.employee.isContract ? "—" : dist.totalDays}</TableCell>
-                    <TableCell className="text-right">
-                      {dist.employee.isContract
-                        ? formatCurrency(dist.employee.contractRate || 0)
-                        : `${formatCurrency(dist.employee.dailyRate)}/день`}
-                    </TableCell>
-                    <TableCell className="text-right">{formatCurrency(dist.totalAccrued)}</TableCell>
-                    <TableCell className="text-right text-primary">{formatCurrency(dist.totalPaid)}</TableCell>
-                    <TableCell className={`text-right ${remaining > 0 ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
-                      {formatCurrency(remaining)}
-                    </TableCell>
+                {/* Project breakdown */}
+                {emp.projects.map((proj) => (
+                  <TableRow key={`${emp.id}-${proj.projectId}`}>
                     <TableCell />
                     <TableCell />
+                    <TableCell />
+                    <TableCell className="text-sm">{proj.projectName}</TableCell>
+                    <TableCell className="text-right text-sm">{emp.isContract ? "—" : proj.days}</TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">
+                      {Math.round(proj.proportion * 100)}%
+                    </TableCell>
+                    <TableCell />
+                    <TableCell className="text-right text-sm">{formatCurrency(proj.accrued)}</TableCell>
                   </TableRow>
-
-                  {/* Project breakdown rows */}
-                  {dist.projects.map((proj) => (
-                    <TableRow key={`${dist.employee.id}-${proj.projectId}`}>
-                      <TableCell />
-                      <TableCell />
-                      <TableCell className="text-sm">{proj.projectName}</TableCell>
-                      <TableCell className="text-right text-sm">{dist.employee.isContract ? "—" : proj.days}</TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {Math.round(proj.proportion * 100)}%
-                      </TableCell>
-                      <TableCell className="text-right text-sm">{formatCurrency(proj.accrued)}</TableCell>
-                      <TableCell className="text-right text-sm text-primary">{formatCurrency(proj.paid)}</TableCell>
-                      <TableCell className={`text-right text-sm ${(proj.accrued - proj.paid) > 0 ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
-                        {formatCurrency(proj.accrued - proj.paid)}
-                      </TableCell>
-                      <TableCell />
-                      <TableCell />
-                    </TableRow>
-                  ))}
-
-                  {/* Payment history rows */}
-                  {dist.payments.map((payment, pi) => (
-                    <TableRow key={`${dist.employee.id}-pay-${pi}`} className="text-muted-foreground">
-                      <TableCell />
-                      <TableCell />
-                      <TableCell className="text-xs italic pl-6">
-                        {payment.projectBreakdown.map((pb) => (
-                          <span key={pb.projectId} className="block">
-                            → {pb.projectName}: {formatCurrency(pb.amount)}
-                          </span>
-                        ))}
-                      </TableCell>
-                      <TableCell />
-                      <TableCell />
-                      <TableCell />
-                      <TableCell className="text-right text-sm font-medium text-foreground">
-                        {formatCurrency(payment.amount)}
-                      </TableCell>
-                      <TableCell />
-                      <TableCell className="text-center text-xs">{payment.date}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline" className="text-xs">
-                          {payment.type}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </>
-              );
-            })}
+                ))}
+              </>
+            ))}
 
             {/* Grand total */}
-            <TableRow className="bg-muted/50 border-t-2 border-border font-bold">
-              <TableCell>Итого по сотрудникам</TableCell>
-              <TableCell />
-              <TableCell />
-              <TableCell />
-              <TableCell />
-              <TableCell className="text-right">{formatCurrency(grandTotalAccrued)}</TableCell>
-              <TableCell className="text-right text-primary">{formatCurrency(grandTotalPaid)}</TableCell>
-              <TableCell className={`text-right ${(grandTotalAccrued - grandTotalPaid) > 0 ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
-                {formatCurrency(grandTotalAccrued - grandTotalPaid)}
-              </TableCell>
-              <TableCell />
-              <TableCell />
-            </TableRow>
+            {filtered.length > 0 && (
+              <TableRow className="bg-muted/50 border-t-2 border-border font-bold">
+                <TableCell>Итого</TableCell>
+                <TableCell />
+                <TableCell />
+                <TableCell />
+                <TableCell className="text-right">{grandDays}</TableCell>
+                <TableCell />
+                <TableCell />
+                <TableCell className="text-right">{formatCurrency(grandTotal)}</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
 
       {/* Project summary */}
       <div>
-        <h3 className="text-sm font-semibold mb-2 text-muted-foreground">Сводка по проектам (нагрузка ЗП на бюджет)</h3>
+        <h3 className="text-sm font-semibold mb-2 text-muted-foreground">
+          Сводка по проектам (нагрузка ЗП на бюджет)
+        </h3>
         <div className="rounded-lg border border-border overflow-auto bg-card">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[250px]">Проект</TableHead>
+                <TableHead className="text-right min-w-[100px]">Дней</TableHead>
                 <TableHead className="text-right min-w-[130px]">Начислено (ЗП)</TableHead>
-                <TableHead className="text-right min-w-[130px]">Выплачено (ЗП)</TableHead>
-                <TableHead className="text-right min-w-[130px]">Остаток (ЗП)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {Object.entries(projectSummary).map(([projId, data]) => (
                 <TableRow key={projId}>
                   <TableCell className="font-medium">{data.name}</TableCell>
+                  <TableCell className="text-right">{data.days}</TableCell>
                   <TableCell className="text-right">{formatCurrency(data.accrued)}</TableCell>
-                  <TableCell className="text-right text-primary">{formatCurrency(data.paid)}</TableCell>
-                  <TableCell className={`text-right ${(data.accrued - data.paid) > 0 ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
-                    {formatCurrency(data.accrued - data.paid)}
-                  </TableCell>
                 </TableRow>
               ))}
-              <TableRow className="bg-muted/50 font-bold border-t">
-                <TableCell>Итого</TableCell>
-                <TableCell className="text-right">{formatCurrency(Object.values(projectSummary).reduce((s, d) => s + d.accrued, 0))}</TableCell>
-                <TableCell className="text-right text-primary">{formatCurrency(Object.values(projectSummary).reduce((s, d) => s + d.paid, 0))}</TableCell>
-                <TableCell className={`text-right ${(grandTotalAccrued - grandTotalPaid) > 0 ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
-                  {formatCurrency(Object.values(projectSummary).reduce((s, d) => s + (d.accrued - d.paid), 0))}
-                </TableCell>
-              </TableRow>
+              {Object.keys(projectSummary).length > 0 && (
+                <TableRow className="bg-muted/50 font-bold border-t">
+                  <TableCell>Итого</TableCell>
+                  <TableCell className="text-right">
+                    {Object.values(projectSummary).reduce((s, d) => s + d.days, 0)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {formatCurrency(Object.values(projectSummary).reduce((s, d) => s + d.accrued, 0))}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
