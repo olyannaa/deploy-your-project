@@ -257,15 +257,6 @@ export default function ProjectFinanceTab({ project }: ProjectFinanceTabProps) {
         </TabsContent>
 
         <TabsContent value="additional" className="mt-4 space-y-4">
-          {currentRole === "admin" && (
-            <div className="flex flex-wrap gap-2 items-end">
-              <div className="space-y-1"><p className="text-xs text-muted-foreground">Название</p><Input value={newCostName} onChange={(e) => setNewCostName(e.target.value)} className="w-40" /></div>
-              <div className="space-y-1"><p className="text-xs text-muted-foreground">Категория</p><Input value={newCostCategory} onChange={(e) => setNewCostCategory(e.target.value)} className="w-32" /></div>
-              <div className="space-y-1"><p className="text-xs text-muted-foreground">Сумма</p><Input type="number" value={newCostAmount} onChange={(e) => setNewCostAmount(e.target.value)} className="w-28" /></div>
-              <div className="space-y-1"><p className="text-xs text-muted-foreground">Примечание</p><Input value={newCostNote} onChange={(e) => setNewCostNote(e.target.value)} className="w-40" /></div>
-              <Button size="sm" onClick={addAdditionalCost}>Добавить</Button>
-            </div>
-          )}
           <Table>
             <TableHeader>
               <TableRow>
