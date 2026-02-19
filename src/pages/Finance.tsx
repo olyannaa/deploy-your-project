@@ -94,12 +94,84 @@ export function weekLabel(date: Date): string {
 }
 
 // Shared payments store — arrays per cell for multiple payments
-let globalPayments: Record<string, Record<number, PaymentEntry[]>> = {};
+// Seed with demo data so the table is not empty
+function buildInitialPayments(): Record<string, Record<number, PaymentEntry[]>> {
+  return {
+    "proj-1": {
+      2: [
+        { amount: 250000, taskId: "acc-1", taskTitle: "Выплата ЗП за март — «Рассвет»", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }] },
+      ],
+      4: [
+        { amount: 850000, taskId: "acc-2", taskTitle: "Оплата субподрядчику СтройМонтаж", reason: "subcontract" },
+      ],
+      5: [
+        { amount: 45000, taskId: "acc-3", taskTitle: "Доп. расходы: командировка на площадку", reason: "additional" },
+        { amount: 180000, taskId: "acc-4", taskTitle: "Выплата аванса за апрель — «Рассвет»", reason: "salary", employeePayments: [{ id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-6", name: "Волков Д.К.", amount: 60000 }] },
+      ],
+      7: [
+        { amount: 320000, taskId: "acc-5", taskTitle: "Оплата ИП Кузнецов — изыскания", reason: "subcontract" },
+      ],
+    },
+    "proj-2": {
+      1: [
+        { amount: 200000, taskId: "acc-8", taskTitle: "Оформление КС-2/КС-3 — «Парковый»", reason: "subcontract" },
+      ],
+      3: [
+        { amount: 175000, reason: "salary", taskTitle: "ЗП команды — «Парковый»", employeePayments: [{ id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-7", name: "Лебедева О.Н.", amount: 48000 }, { id: "user-4", name: "Козлов В.М.", amount: 59500 }] },
+      ],
+      6: [
+        { amount: 95000, reason: "additional", taskTitle: "Расходы на экспертизу — «Парковый»" },
+      ],
+    },
+    "proj-3": {
+      3: [
+        { amount: 600000, reason: "subcontract", taskTitle: "Аванс ГеоИзыскания — «Восток»" },
+      ],
+      6: [
+        { amount: 120000, reason: "salary", taskTitle: "ЗП — «Восток»", employeePayments: [{ id: "user-6", name: "Волков Д.К.", amount: 60000 }, { id: "user-8", name: "Новиков С.В.", amount: 60000 }] },
+      ],
+    },
+    "proj-4": {
+      0: [
+        { amount: 500000, reason: "salary", taskTitle: "Финальная ЗП — Школа" },
+      ],
+      1: [
+        { amount: 350000, reason: "subcontract", taskTitle: "Остаток субподряд — Школа" },
+      ],
+    },
+    "__no_project__": {
+      4: [
+        { amount: 385000, taskId: "acc-7", taskTitle: "Выплата ЗП (общая)", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }, { id: "user-6", name: "Волков Д.К.", amount: 30000 }, { id: "user-7", name: "Лебедева О.Н.", amount: 48000 }, { id: "user-8", name: "Новиков С.В.", amount: 57000 }] },
+      ],
+    },
+  };
+}
+
+function buildInitialIncomes(): Record<string, Record<number, PaymentEntry[]>> {
+  return {
+    "proj-1": {
+      0: [{ amount: 3750000, taskTitle: "Аванс от заказчика — «Рассвет»", reason: "income" }],
+      5: [{ amount: 2500000, taskTitle: "Второй транш — «Рассвет»", reason: "income" }],
+    },
+    "proj-2": {
+      0: [{ amount: 2460000, taskTitle: "Аванс от заказчика — «Парковый»", reason: "income" }],
+      4: [{ amount: 1640000, taskTitle: "Оплата этапа — «Парковый»", reason: "income" }],
+    },
+    "proj-3": {
+      1: [{ amount: 2040000, taskTitle: "Аванс от заказчика — «Восток»", reason: "income" }],
+    },
+    "proj-4": {
+      0: [{ amount: 4500000, taskTitle: "Финальный расчёт — Школа", reason: "income" }],
+    },
+  };
+}
+
+let globalPayments: Record<string, Record<number, PaymentEntry[]>> = buildInitialPayments();
 export function getGlobalPayments() { return globalPayments; }
 export function setGlobalPayments(p: Record<string, Record<number, PaymentEntry[]>>) { globalPayments = p; }
 
 // Shared income store — arrays per cell
-let globalIncomes: Record<string, Record<number, PaymentEntry[]>> = {};
+let globalIncomes: Record<string, Record<number, PaymentEntry[]>> = buildInitialIncomes();
 export function getGlobalIncomes() { return globalIncomes; }
 export function setGlobalIncomes(p: Record<string, Record<number, PaymentEntry[]>>) { globalIncomes = p; }
 
