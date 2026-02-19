@@ -41,6 +41,8 @@ import { Plus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 import SalaryDistributionTab from "@/components/finance/SalaryDistributionTab";
+import SalaryPaymentsTab from "@/components/finance/SalaryPaymentsTab";
+import { getSalaryPaidOnDate, getSalaryDatesForHalfYear } from "@/data/salaryStore";
 
 interface Project {
   id: string;
@@ -238,6 +240,45 @@ export default function Finance() {
 
   const weeks = useMemo(() => generateWeeks(activeProjects), [activeProjects]);
   const monthGroups = useMemo(() => groupByMonth(weeks), [weeks]);
+  const salaryDates = useMemo(() => getSalaryDatesForHalfYear(), []);
+  const [salaryRefresh, setSalaryRefresh] = useState(0);
+
+  // Build unified column list: weeks + salary dates, sorted chronologically
+  const columns = useMemo(() => {
+    const cols: { type: "week"; weekIndex: number; date: Date; label: string }[] | { type: "salary"; date: string; label: string; salaryType: "salary" | "advance" }[] = [];
+    const allCols: Array<
+      | { type: "week"; weekIndex: number; date: Date; label: string; sortKey: number }
+      | { type: "salary"; date: string; label: string; salaryType: "salary" | "advance"; sortKey: number }
+    > = [];
+
+    weeks.forEach((w, i) => {
+      allCols.push({ type: "week", weekIndex: i, date: w, label: weekLabel(w), sortKey: w.getTime() });
+    });
+
+    salaryDates.forEach((sd) => {
+      const d = new Date(sd.date);
+      allCols.push({ type: "salary", date: sd.date, label: sd.label, salaryType: sd.type, sortKey: d.getTime() });
+    });
+
+    allCols.sort((a, b) => a.sortKey - b.sortKey);
+    return allCols;
+  }, [weeks, salaryDates]);
+
+  // Group columns by month for header
+  const columnMonthGroups = useMemo(() => {
+    const groups: { label: string; count: number }[] = [];
+    for (const col of columns) {
+      const d = col.type === "week" ? col.date : new Date(col.date);
+      const label = format(d, "LLLL yyyy", { locale: ru });
+      const last = groups[groups.length - 1];
+      if (last && last.label === label) {
+        last.count++;
+      } else {
+        groups.push({ label, count: 1 });
+      }
+    }
+    return groups;
+  }, [columns]);
 
   const [payments, setPayments] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalPayments);
   const [incomes, setIncomes] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalIncomes);
@@ -437,6 +478,7 @@ export default function Finance() {
         <Tabs defaultValue="finance" className="space-y-4">
           <TabsList className="inline-flex w-auto">
             <TabsTrigger value="finance">Финансы</TabsTrigger>
+            <TabsTrigger value="payments">Выплаты ЗП</TabsTrigger>
             <TabsTrigger value="salary">Распределение ЗП</TabsTrigger>
           </TabsList>
 
@@ -460,20 +502,32 @@ export default function Finance() {
                 <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>
                   Остаток
                 </TableHead>
-                {monthGroups.map((mg) => (
+                {columnMonthGroups.map((mg) => (
                   <TableHead
                     key={mg.label}
                     className="text-center bg-muted border-l border-border capitalize"
-                    colSpan={mg.weeks.length}
+                    colSpan={mg.count}
                   >
                     {mg.label}
                   </TableHead>
                 ))}
               </TableRow>
               <TableRow>
-                {weeks.map((w, i) => (
-                  <TableHead key={i} className="text-center bg-muted text-xs min-w-[80px] border-l border-border">
-                    {weekLabel(w)}
+                {columns.map((col, i) => (
+                  <TableHead
+                    key={i}
+                    className={`text-center text-xs min-w-[80px] border-l border-border ${
+                      col.type === "salary"
+                        ? "bg-accent/60 font-semibold"
+                        : "bg-muted"
+                    }`}
+                  >
+                    {col.label}
+                    {col.type === "salary" && (
+                      <div className="text-[10px] text-muted-foreground font-normal">
+                        {col.salaryType === "advance" ? "Аванс" : "ЗП"}
+                      </div>
+                    )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -531,12 +585,34 @@ export default function Finance() {
                         {remaining.toLocaleString("ru-RU")} ₽
                       </TableCell>
                       
-                      {weeks.map((_, wi) => {
+                      {columns.map((col, ci) => {
+                        if (col.type === "salary") {
+                          const salaryTotal = getSalaryPaidOnDate(col.date);
+                          return (
+                            <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                              {salaryTotal > 0 ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md text-destructive font-medium">
+                                      −{salaryTotal.toLocaleString("ru-RU")}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="text-xs">{col.salaryType === "advance" ? "Аванс" : "ЗП"} — проведено</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
+                              )}
+                            </TableCell>
+                          );
+                        }
+                        const wi = col.weekIndex;
                         const entries = payments[project.id]?.[wi] || [];
                         const cellTotal = getCellTotal(project.id, wi);
                         return (
                           <TableCell
-                            key={wi}
+                            key={ci}
                             className="p-1 border-l border-border transition-colors"
                             onClick={() => !isReadOnly && openPaymentDialog(project.id, wi)}
                           >
@@ -575,12 +651,20 @@ export default function Finance() {
                     </TableRow>
                     {/* Income row */}
                     <TableRow key={`${project.id}-income`} className="border-b-2 border-border">
-                      {weeks.map((_, wi) => {
+                      {columns.map((col, ci) => {
+                        if (col.type === "salary") {
+                          return (
+                            <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                              <div className="h-7 min-w-[70px]" />
+                            </TableCell>
+                          );
+                        }
+                        const wi = col.weekIndex;
                         const entries = incomes[project.id]?.[wi] || [];
                         const cellTotal = getIncomeCellTotal(project.id, wi);
                         return (
                           <TableCell
-                            key={wi}
+                            key={ci}
                             className="p-1 border-l border-border transition-colors"
                             onClick={() => !isReadOnly && openIncomeDialog(project.id, wi)}
                           >
@@ -627,7 +711,7 @@ export default function Finance() {
                   <>
                     {/* Subheader */}
                     <TableRow>
-                      <TableCell colSpan={5 + weeks.length} className="sticky left-0 z-10 bg-muted/70 font-semibold text-muted-foreground py-2 text-sm border-t-2 border-border">
+                      <TableCell colSpan={5 + columns.length} className="sticky left-0 z-10 bg-muted/70 font-semibold text-muted-foreground py-2 text-sm border-t-2 border-border">
                         <div className="flex items-center gap-2">
                           Вне проекта
                           {isAccountant && (
@@ -675,12 +759,20 @@ export default function Finance() {
                             {taskPaid > 0 ? `${taskPaid.toLocaleString("ru-RU")} ₽` : "—"}
                           </TableCell>
                           <TableCell className="text-center tabular-nums text-muted-foreground">—</TableCell>
-                          {weeks.map((_, wi) => {
+                          {columns.map((col, ci) => {
+                            if (col.type === "salary") {
+                              return (
+                                <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                                  <div className="h-7 min-w-[70px]" />
+                                </TableCell>
+                              );
+                            }
+                            const wi = col.weekIndex;
                             const entries = (payments["__no_project__"]?.[wi] || []).filter(e => e.taskId === task.id);
                             const cellTotal = entries.reduce((s, e) => s + e.amount, 0);
                             return (
                               <TableCell
-                                key={wi}
+                                key={ci}
                                 className="p-1 border-l border-border transition-colors"
                                 onClick={() => !isReadOnly && openPaymentDialog("__no_project__", wi)}
                               >
@@ -742,12 +834,26 @@ export default function Finance() {
                           : "text-red-600 dark:text-red-400"
                     }`}>{totalRemaining.toLocaleString("ru-RU")} ₽</TableCell>
                     
-                    {weeks.map((_, wi) => {
+                    {columns.map((col, ci) => {
+                      if (col.type === "salary") {
+                        const salaryTotal = getSalaryPaidOnDate(col.date);
+                        return (
+                          <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                            {salaryTotal > 0 ? (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-[10px] tabular-nums text-destructive font-semibold">
+                                −{salaryTotal.toLocaleString("ru-RU")}
+                              </div>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
+                            )}
+                          </TableCell>
+                        );
+                      }
+                      const wi = col.weekIndex;
                       const weekPaid = activeProjects.reduce((s, p) => s + getCellTotal(p.id, wi), 0) + getCellTotal("__no_project__", wi);
                       const weekIncome = activeProjects.reduce((s, p) => s + getIncomeCellTotal(p.id, wi), 0) + getIncomeCellTotal("__no_project__", wi);
-                      const net = weekIncome - weekPaid;
                       return (
-                        <TableCell key={wi} className="p-1 border-l border-border">
+                        <TableCell key={ci} className="p-1 border-l border-border">
                           {(weekPaid > 0 || weekIncome > 0) ? (
                             <div className="h-7 min-w-[70px] flex flex-col items-center justify-center text-[10px] tabular-nums">
                               {weekPaid > 0 && <span className="text-destructive">−{weekPaid.toLocaleString("ru-RU")}</span>}
@@ -765,6 +871,10 @@ export default function Finance() {
             </TableBody>
            </Table>
           </div>
+          </TabsContent>
+
+          <TabsContent value="payments" className="mt-0">
+            <SalaryPaymentsTab onPayrollProcessed={() => setSalaryRefresh((v) => v + 1)} />
           </TabsContent>
 
           <TabsContent value="salary" className="mt-0">
