@@ -457,9 +457,6 @@ export default function Finance() {
                 <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>
                   Остаток
                 </TableHead>
-                <TableHead className="text-center bg-muted min-w-[80px]" rowSpan={2}>
-                  Дней
-                </TableHead>
                 {monthGroups.map((mg) => (
                   <TableHead
                     key={mg.label}
@@ -530,7 +527,7 @@ export default function Finance() {
                       }`} rowSpan={2}>
                         {remaining.toLocaleString("ru-RU")} ₽
                       </TableCell>
-                      <TableCell className="text-center tabular-nums" rowSpan={2}>{daysLeft}</TableCell>
+                      
                       {weeks.map((_, wi) => {
                         const entries = payments[project.id]?.[wi] || [];
                         const cellTotal = getCellTotal(project.id, wi);
@@ -627,7 +624,7 @@ export default function Finance() {
                   <>
                     {/* Subheader */}
                     <TableRow>
-                      <TableCell colSpan={6 + weeks.length} className="sticky left-0 z-10 bg-muted/70 font-semibold text-muted-foreground py-2 text-sm border-t-2 border-border">
+                      <TableCell colSpan={5 + weeks.length} className="sticky left-0 z-10 bg-muted/70 font-semibold text-muted-foreground py-2 text-sm border-t-2 border-border">
                         <div className="flex items-center gap-2">
                           Вне проекта
                           {isAccountant && (
@@ -674,7 +671,6 @@ export default function Finance() {
                           <TableCell className="text-center tabular-nums text-primary">
                             {taskPaid > 0 ? `${taskPaid.toLocaleString("ru-RU")} ₽` : "—"}
                           </TableCell>
-                          <TableCell className="text-center tabular-nums text-muted-foreground">—</TableCell>
                           <TableCell className="text-center tabular-nums text-muted-foreground">—</TableCell>
                           {weeks.map((_, wi) => {
                             const entries = (payments["__no_project__"]?.[wi] || []).filter(e => e.taskId === task.id);
@@ -742,7 +738,7 @@ export default function Finance() {
                           ? "text-yellow-600 dark:text-yellow-400"
                           : "text-red-600 dark:text-red-400"
                     }`}>{totalRemaining.toLocaleString("ru-RU")} ₽</TableCell>
-                    <TableCell className="text-center tabular-nums font-bold">{totalDaysLeft}</TableCell>
+                    
                     {weeks.map((_, wi) => {
                       const weekPaid = activeProjects.reduce((s, p) => s + getCellTotal(p.id, wi), 0) + getCellTotal("__no_project__", wi);
                       const weekIncome = activeProjects.reduce((s, p) => s + getIncomeCellTotal(p.id, wi), 0) + getIncomeCellTotal("__no_project__", wi);
