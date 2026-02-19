@@ -62,7 +62,7 @@ const taskTypeLabels: Record<string, string> = {
   subcontract: "Субподряд",
 };
 
-const accountingSubtypeOptions = [
+const allAccountingSubtypeOptions = [
   { id: "salary", label: "Зарплата/Аванс" },
   { id: "subcontractors", label: "Субподрядчики/Фриланс" },
   { id: "extra_costs", label: "Доп. затраты" },
@@ -370,7 +370,12 @@ export default function CreateTaskDialog({
           <DialogTitle>Новая задача</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-2 scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-rounded-full scrollbar-thumb-border scrollbar-track-muted/30 hover:scrollbar-thumb-muted-foreground/40"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'hsl(var(--border)) transparent',
+          }}
+        >
           {!forceTaskType && (
             <div className="space-y-2">
               <Label>Тип задачи *</Label>
@@ -506,8 +511,13 @@ export default function CreateTaskDialog({
                 </div>
               ) : (
                 <Select value={accountingProjectId || "none"} onValueChange={(v) => {
-                  setAccountingProjectId(v === "none" ? "" : v);
+                  const newProjectId = v === "none" ? "" : v;
+                  setAccountingProjectId(newProjectId);
                   setSelectedEmployeeIds([]);
+                  // Reset salary subtype when project is selected (salary only available without project)
+                  if (newProjectId && accountingSubtype === "salary") {
+                    setAccountingSubtype("none");
+                  }
                 }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Без привязки к проекту" />
@@ -536,7 +546,13 @@ export default function CreateTaskDialog({
                   <SelectValue placeholder="Выберите вид" />
                 </SelectTrigger>
                 <SelectContent>
-                  {accountingSubtypeOptions.map((opt) => (
+                  {allAccountingSubtypeOptions
+                    .filter((opt) => {
+                      // Hide "Зарплата/Аванс" when task is linked to a project
+                      if (opt.id === "salary" && (projectId || accountingProjectId)) return false;
+                      return true;
+                    })
+                    .map((opt) => (
                     <SelectItem key={opt.id} value={opt.id}>
                       {opt.label}
                     </SelectItem>
