@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RussianRuble } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useRole } from "@/contexts/RoleContext";
@@ -14,6 +14,7 @@ import {
   getGlobalPayments,
   getProjectSubcontractorPaid,
 } from "@/pages/Finance";
+import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 
 interface ProjectFinanceTabProps {
   project: {
@@ -32,8 +33,37 @@ const reasonLabels: Record<string, string> = {
   other: "Другое",
 };
 
+// Demo data for proj-1 employee costs
+const demoEmployeeCosts: Record<string, any[]> = {
+  "proj-1": [
+    { id: "user-1", name: "Иванов И.И.", workDays: 22, dailyRate: 5500, isContract: false },
+    { id: "user-2", name: "Петров П.П.", workDays: 18, dailyRate: 4800, isContract: false },
+    { id: "user-3", name: "Сидорова А.С.", workDays: 20, dailyRate: 4200, isContract: false },
+    { id: "user-4", name: "Козлов В.М.", workDays: 15, dailyRate: 5000, isContract: false },
+    { id: "user-5", name: "ИП Архитектор Плюс", workDays: 0, dailyRate: 0, isContract: true, contractRate: 350000 },
+  ],
+};
+
+const demoSubcontractors: Record<string, any[]> = {
+  "proj-1": [
+    { id: "sub-1", contractorName: "ООО «СтройМонтаж»", contractAmount: 1200000 },
+    { id: "sub-2", contractorName: "ИП Кузнецов — Геодезия", contractAmount: 450000 },
+    { id: "sub-3", contractorName: "ООО «ЭлектроПроект»", contractAmount: 680000 },
+  ],
+};
+
+const demoAdditionalCosts: Record<string, { id: string; name: string; category: string; amount: number; note: string }[]> = {
+  "proj-1": [
+    { id: "ac-1", name: "Командировка на площадку", category: "Транспорт", amount: 45000, note: "3 дня, 2 сотрудника" },
+    { id: "ac-2", name: "Печать чертежей А0", category: "Материалы", amount: 12500, note: "50 листов" },
+    { id: "ac-3", name: "Лицензия AutoCAD (доп.)", category: "ПО", amount: 85000, note: "Годовая подписка" },
+    { id: "ac-4", name: "Экспертиза проектной документации", category: "Экспертиза", amount: 180000, note: "Негосударственная экспертиза" },
+  ],
+};
+
 export default function ProjectFinanceTab({ project }: ProjectFinanceTabProps) {
   const { currentRole } = useRole();
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
 
   const { data: analytics } = useQuery({
     queryKey: ["project", project.id, "analytics"],
@@ -48,18 +78,21 @@ export default function ProjectFinanceTab({ project }: ProjectFinanceTabProps) {
   });
 
   const costs = analytics?.costs ?? { timesheets: 0, contracts: 0, total: 0 };
-  const employeeCosts = analytics?.costsByUser ?? [];
+  const rawEmployeeCosts = analytics?.costsByUser ?? [];
+  const employeeCosts = rawEmployeeCosts.length > 0 ? rawEmployeeCosts : (demoEmployeeCosts[project.id] ?? []);
+
+  const displaySubcontractors = projectSubcontractors.length > 0 ? projectSubcontractors : (demoSubcontractors[project.id] ?? []);
 
   const projectCosts = {
     budget: project.budget ?? 0,
     laborCost: costs.timesheets,
     contractCost: costs.contracts,
-    totalCost: costs.total,
+    totalCost: costs.total || employeeCosts.reduce((s: number, e: any) => s + (e.isContract ? (e.contractRate || 0) : e.workDays * e.dailyRate), 0),
   };
 
   const [additionalCosts, setAdditionalCosts] = useState<
     { id: string; name: string; category: string; amount: number; note: string }[]
-  >([]);
+  >(demoAdditionalCosts[project.id] ?? []);
   const [newCostName, setNewCostName] = useState("");
   const [newCostCategory, setNewCostCategory] = useState("");
   const [newCostAmount, setNewCostAmount] = useState("");
@@ -86,8 +119,21 @@ export default function ProjectFinanceTab({ project }: ProjectFinanceTabProps) {
   const projectPayments = globalPayments[project.id] || {};
   const totalPaid = Object.values(projectPayments).reduce((s, entries) => s + entries.reduce((es, e) => es + e.amount, 0), 0);
 
+  const canCreateTask = ["admin", "gip", "accountant"].includes(currentRole);
+
   return (
     <div className="space-y-6">
+      {/* Header with button */}
+      <div className="flex items-center justify-between">
+        <div />
+        {canCreateTask && (
+          <Button className="gap-2" onClick={() => setIsCreateTaskOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Создать задачу
+          </Button>
+        )}
+      </div>
+
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <Card className="border-border/40 p-4">
@@ -191,10 +237,10 @@ export default function ProjectFinanceTab({ project }: ProjectFinanceTabProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projectSubcontractors.length === 0 ? (
+              {displaySubcontractors.length === 0 ? (
                 <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">Нет субподрядчиков</TableCell></TableRow>
               ) : (
-                projectSubcontractors.map((sub: any) => {
+                displaySubcontractors.map((sub: any) => {
                   const paid = getProjectSubcontractorPaid(project.id, sub.id);
                   return (
                     <TableRow key={sub.id}>
@@ -246,6 +292,13 @@ export default function ProjectFinanceTab({ project }: ProjectFinanceTabProps) {
           </Table>
         </TabsContent>
       </Tabs>
+
+      <CreateTaskDialog
+        open={isCreateTaskOpen}
+        onOpenChange={setIsCreateTaskOpen}
+        projectId={project.id}
+        forceTaskType="accounting"
+      />
     </div>
   );
 }
