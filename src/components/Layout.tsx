@@ -29,7 +29,7 @@ interface NavigationItem {
 }
 
 const allNavigation: NavigationItem[] = [
-  { name: "Проекты", href: "/projects", icon: FolderKanban, roles: ["admin", "gip", "executor"] },
+  { name: "Проекты", href: "/projects", icon: FolderKanban, roles: ["admin", "gip", "executor", "accountant"] },
   { name: "Финансы", href: "/finance", icon: Banknote, roles: ["admin", "accountant"] },
   { name: "Задачи", href: "/tasks", icon: LayoutDashboard, roles: ["admin", "gip", "executor", "accountant"] },
   { name: "Заявки", href: "/approvals", icon: ClipboardCheck, roles: ["admin"] },
