@@ -289,10 +289,6 @@ export default function CreateTaskDialog({
       toast.error("Выберите проект");
       return;
     }
-    if (taskType === "accounting" && !isAccountantOnly && !accountingProjectId) {
-      toast.error("Для бухгалтерской задачи необходимо выбрать проект");
-      return;
-    }
     if (!title.trim()) {
       if (taskType !== "subcontract") {
         toast.error("Введите название задачи");
