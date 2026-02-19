@@ -16,50 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { mockEmployees, mockDepartments } from "@/data/mockData";
 import { Search } from "lucide-react";
-
-/**
- * Demo: days each employee spent on each project per month (YYYY-MM key).
- * In production this comes from time-tracking entries.
- */
-const demoMonthlyTime: Record<string, Record<string, Record<string, number>>> = {
-  "user-1": {
-    "2026-01": { "proj-1": 12, "proj-2": 4, "proj-3": 2 },
-    "2026-02": { "proj-1": 14, "proj-2": 5, "proj-3": 3 },
-  },
-  "user-2": {
-    "2026-01": { "proj-1": 8, "proj-3": 6 },
-    "2026-02": { "proj-1": 10, "proj-3": 8 },
-  },
-  "user-3": {
-    "2026-01": { "proj-1": 10, "proj-2": 6 },
-    "2026-02": { "proj-1": 12, "proj-2": 8 },
-  },
-  "user-4": {
-    "2026-01": { "proj-2": 7, "proj-4": 5 },
-    "2026-02": { "proj-2": 9, "proj-4": 6 },
-  },
-  "user-6": {
-    "2026-01": { "proj-1": 0 },
-    "2026-02": { "proj-1": 0 },
-  },
-  "user-7": {
-    "2026-01": { "proj-1": 5, "proj-2": 6, "proj-4": 4 },
-    "2026-02": { "proj-1": 6, "proj-2": 7, "proj-4": 5 },
-  },
-  "user-8": {
-    "2026-01": { "proj-3": 8, "proj-4": 7 },
-    "2026-02": { "proj-3": 10, "proj-4": 8 },
-  },
-};
-
-const projectNames: Record<string, string> = {
-  "proj-1": "Агропромышленный комплекс «Рассвет»",
-  "proj-2": "Жилой комплекс «Парковый»",
-  "proj-3": "Логистический центр «Восток»",
-  "proj-4": "Школа на 550 мест",
-};
+import { mockEmployees, mockDepartments } from "@/data/mockData";
+import { demoMonthlyTime, projectNames } from "@/data/salaryStore";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -135,7 +94,6 @@ export default function SalaryDistributionTab() {
       .filter((e) => e.totalAccrued > 0);
   }, [selectedMonth]);
 
-  // Apply filters
   const filtered = useMemo(() => {
     let result = employees;
     if (searchQuery.trim()) {
@@ -148,7 +106,6 @@ export default function SalaryDistributionTab() {
     return result;
   }, [employees, searchQuery, selectedDepartment]);
 
-  // Project summary
   const projectSummary = useMemo(() => {
     const summary: Record<string, { name: string; accrued: number; days: number }> = {};
     for (const emp of filtered) {
@@ -233,7 +190,6 @@ export default function SalaryDistributionTab() {
             )}
             {filtered.map((emp) => (
               <>
-                {/* Employee summary row */}
                 <TableRow key={emp.id} className="bg-muted/30 font-semibold border-t-2 border-border">
                   <TableCell>{emp.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{emp.departmentName}</TableCell>
@@ -253,7 +209,6 @@ export default function SalaryDistributionTab() {
                   <TableCell className="text-right">{formatCurrency(emp.totalAccrued)}</TableCell>
                 </TableRow>
 
-                {/* Project breakdown */}
                 {emp.projects.map((proj) => (
                   <TableRow key={`${emp.id}-${proj.projectId}`}>
                     <TableCell />
@@ -271,7 +226,6 @@ export default function SalaryDistributionTab() {
               </>
             ))}
 
-            {/* Grand total */}
             {filtered.length > 0 && (
               <TableRow className="bg-muted/50 border-t-2 border-border font-bold">
                 <TableCell>Итого</TableCell>
