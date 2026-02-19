@@ -272,12 +272,14 @@ export default function TaskDetailsDialog({
                     </Badge>
                   )}
                 </div>
-                <div className="space-y-1 text-sm">
-                  <div className="text-muted-foreground">Раздел WBS</div>
-                  <div className="text-foreground">
-                    {task.section ? `${task.section.code || ""} ${task.section.name || ""}`.trim() : "—"}
+                {!isAccountant && (
+                  <div className="space-y-1 text-sm">
+                    <div className="text-muted-foreground">Раздел WBS</div>
+                    <div className="text-foreground">
+                      {task.section ? `${task.section.code || ""} ${task.section.name || ""}`.trim() : "—"}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="space-y-1 text-sm">
                   <div className="text-muted-foreground">Плановая дата старта</div>
                   <div className="text-foreground">{formatDate(task.plannedStartDate)}</div>
