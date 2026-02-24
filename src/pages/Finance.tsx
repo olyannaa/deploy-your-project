@@ -743,18 +743,8 @@ export default function Finance() {
                               >
                                 <div className="min-w-[70px] flex items-center justify-center text-xs tabular-nums py-2">
                                   {plannedTotal > 0 ? (
-                                    <span className={`font-medium flex items-center gap-0.5 ${missed ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
+                                    <span className={`font-medium ${missed ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
                                       +{fmtNum(plannedTotal)}
-                                      {missed && isAdminOrGip && (
-                                        <button
-                                          type="button"
-                                          className="ml-0.5 p-0.5 rounded hover:bg-muted transition-colors"
-                                          onClick={(e) => { e.stopPropagation(); hideMissedCell(`${project.id}-${ci}`); }}
-                                          title="Скрыть предупреждение"
-                                        >
-                                          <EyeOff className="h-3 w-3" />
-                                        </button>
-                                      )}
                                     </span>
                                   ) : (
                                     <span className="text-muted-foreground">—</span>
