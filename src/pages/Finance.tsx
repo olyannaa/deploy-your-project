@@ -204,13 +204,13 @@ const reasonLabels: Record<string, string> = {
 
 /* ============================== ANALYTICS COLUMNS ============================== */
 const ANALYTICS_COLUMNS = [
-  { key: "budget", label: "Сумма по договору" },
-  { key: "income", label: "Поступления" },
-  { key: "balanceIncome", label: "Сальдо\n(Остаток к поступлению)" },
-  { key: "opex", label: "Операционные расходы" },
-  { key: "fot", label: "ФОТ" },
-  { key: "totalExpenses", label: "Общие расходы" },
-  { key: "balance", label: "Сальдо (Между\nпоступлениями\nи расходами)" },
+  { key: "budget", label: "Сумма по договору", tooltip: "Бюджет проекта", calculation: "Берётся из карточки проекта из поля «Общий бюджет проекта (руб.)»" },
+  { key: "income", label: "Поступления", tooltip: "Поступления по заключённым договорам в рамках проекта", calculation: "Сумма всех приходов по этому проекту" },
+  { key: "balanceIncome", label: "Сальдо\n(Остаток к поступлению)", tooltip: "Разница между Суммой по договору и Поступлениями", calculation: "Сумма по договору − Поступления" },
+  { key: "opex", label: "Операционные расходы", tooltip: "Заключённые с Субподрядчиками/Фрилансерами + Доп. затраты", calculation: "Берётся из карточки проекта из раздела свойства «Субподряды», складываются все суммы из поля Оплачено" },
+  { key: "fot", label: "ФОТ", tooltip: "Разница между Расходом и Оплачено", calculation: "Разница между столбцом Расход и Оплачено" },
+  { key: "totalExpenses", label: "Оплачено (с ЗП)", tooltip: "Сумма всех выплат по проекту", calculation: "Считаем сумму всех выплат по проекту с ЗП и Авансом" },
+  { key: "balance", label: "Сальдо (Между\nпоступлениями\nи расходами)", tooltip: "Разница между столбцом Поступления и Оплачено (с ЗП)", calculation: "Поступления − Оплачено (с ЗП)" },
 ] as const;
 
 type AnalyticsColumnKey = typeof ANALYTICS_COLUMNS[number]["key"];
@@ -652,7 +652,17 @@ export default function Finance() {
                         }`}
                         rowSpan={2}
                       >
-                        {col.label}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">
+                              {col.label}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[280px] text-left">
+                            <p className="font-semibold text-sm mb-1">{col.tooltip}</p>
+                            <p className="text-xs text-muted-foreground">{col.calculation}</p>
+                          </TooltipContent>
+                        </Tooltip>
                       </TableHead>
                     ))}
                     {columnMonthGroups.map((mg) => (
