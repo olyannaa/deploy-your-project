@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/popover";
 import { differenceInDays, parseISO, startOfWeek, addWeeks, format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Plus, SlidersHorizontal, Pencil, ArrowLeftRight, Trash2 } from "lucide-react";
+import { Plus, SlidersHorizontal, Pencil, ArrowLeftRight, Trash2, EyeOff } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 import SalaryDistributionTab from "@/components/finance/SalaryDistributionTab";
@@ -53,7 +53,11 @@ export interface PlannedIncomeEntry {
   amount: number;
 }
 
-let globalPlannedIncomes: Record<string, Record<number, PlannedIncomeEntry[]>> = {};
+function buildInitialPlannedIncomes(): Record<string, Record<number, PlannedIncomeEntry[]>> {
+  // Will be populated after columns are computed; return empty initially
+  return {};
+}
+let globalPlannedIncomes: Record<string, Record<number, PlannedIncomeEntry[]>> = buildInitialPlannedIncomes();
 export function getGlobalPlannedIncomes() { return globalPlannedIncomes; }
 export function setGlobalPlannedIncomes(p: Record<string, Record<number, PlannedIncomeEntry[]>>) { globalPlannedIncomes = p; }
 
@@ -257,8 +261,51 @@ export default function Finance() {
   // Planned incomes
   const [plannedIncomes, setPlannedIncomes] = useState<Record<string, Record<number, PlannedIncomeEntry[]>>>(globalPlannedIncomes);
   const updatePlannedIncomes = (next: Record<string, Record<number, PlannedIncomeEntry[]>>) => { setPlannedIncomes(next); setGlobalPlannedIncomes(next); };
-  const [showMissedWarnings, setShowMissedWarnings] = useState(true);
+  const [hiddenMissedCells, setHiddenMissedCells] = useState<Set<string>>(new Set());
+  const hideMissedCell = (key: string) => setHiddenMissedCells((prev) => new Set(prev).add(key));
 
+  // Seed planned incomes on first render based on column indices
+  const [seeded, setSeeded] = useState(false);
+  if (!seeded && columns.length > 0 && Object.keys(globalPlannedIncomes).length === 0) {
+    // Find column indices for specific weeks (by week start date matching)
+    const findColIndex = (monthIdx: number, weekOfMonth: number) => {
+      let count = 0;
+      for (let i = 0; i < columns.length; i++) {
+        const col = columns[i];
+        if (col.type === "week" && col.date.getMonth() === monthIdx) {
+          if (count === weekOfMonth) return i;
+          count++;
+        }
+      }
+      return -1;
+    };
+    const ci1 = findColIndex(0, 1); // Jan week 2
+    const ci2 = findColIndex(1, 2); // Feb week 3
+    const ci3 = findColIndex(2, 0); // Mar week 1
+    const ci4 = findColIndex(3, 1); // Apr week 2
+    const ci5 = findColIndex(4, 0); // May week 1
+    const seed: Record<string, Record<number, PlannedIncomeEntry[]>> = {};
+    if (ci1 >= 0) {
+      seed["proj-1"] = { ...seed["proj-1"], [ci1]: [{ id: "plan-s1", title: "Аванс от заказчика — «Рассвет» (30%)", amount: 3750000 }] };
+    }
+    if (ci2 >= 0) {
+      seed["proj-1"] = { ...seed["proj-1"], [ci2]: [{ id: "plan-s2", title: "Оплата этапа 1 — «Рассвет»", amount: 2500000 }] };
+      seed["proj-2"] = { ...seed["proj-2"], [ci2]: [{ id: "plan-s3", title: "Аванс от заказчика — «Парковый»", amount: 2460000 }] };
+    }
+    if (ci3 >= 0) {
+      seed["proj-3"] = { ...seed["proj-3"], [ci3]: [{ id: "plan-s4", title: "Аванс от заказчика — «Восток»", amount: 2040000 }] };
+    }
+    if (ci4 >= 0) {
+      seed["proj-2"] = { ...seed["proj-2"], [ci4]: [{ id: "plan-s5", title: "Оплата этапа — «Парковый»", amount: 1640000 }] };
+      seed["proj-4"] = { ...seed["proj-4"], [ci4]: [{ id: "plan-s6", title: "Финальный расчёт — Школа", amount: 4500000 }] };
+    }
+    if (ci5 >= 0) {
+      seed["proj-1"] = { ...seed["proj-1"], [ci5]: [{ id: "plan-s7", title: "Второй транш — «Рассвет»", amount: 2500000 }] };
+    }
+    setPlannedIncomes(seed);
+    setGlobalPlannedIncomes(seed);
+    setSeeded(true);
+  }
   // View mode (Факт / План)
   const [viewMode, setViewMode] = useState<"fact" | "plan">("fact");
 
@@ -352,9 +399,9 @@ export default function Finance() {
 
   // Check if planned income exists but no actual income for a week column
   const hasMissedIncome = (projectId: string, colIndex: number, col: typeof columns[number]) => {
-    if (!showMissedWarnings) return false;
     if (col.type !== "week") return false;
     if (!isDatePast(col)) return false;
+    if (hiddenMissedCells.has(`${projectId}-${colIndex}`)) return false;
     const planned = getPlannedCellTotal(projectId, colIndex);
     if (planned <= 0) return false;
     const actual = getIncomeCellTotal(projectId, col.weekIndex);
@@ -544,14 +591,6 @@ export default function Finance() {
                   </div>
                 </PopoverContent>
               </Popover>
-
-              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <Checkbox
-                  checked={showMissedWarnings}
-                  onCheckedChange={(v) => setShowMissedWarnings(!!v)}
-                />
-                Нет прихода
-              </label>
             </div>
 
             <div className="rounded-lg border border-border overflow-auto bg-card">
@@ -731,7 +770,17 @@ export default function Finance() {
                                       onClick={() => !isReadOnly && openIncomeDialog(project.id, wi)}
                                     >
                                       {missed ? (
-                                        <span className="text-destructive text-[10px] font-medium">⚠ Нет прихода</span>
+                                        <span className="text-destructive text-[10px] font-medium flex items-center gap-0.5">
+                                          ⚠ Нет прихода
+                                          <button
+                                            type="button"
+                                            className="ml-0.5 p-0.5 rounded hover:bg-muted transition-colors"
+                                            onClick={(e) => { e.stopPropagation(); hideMissedCell(`${project.id}-${ci}`); }}
+                                            title="Скрыть предупреждение"
+                                          >
+                                            <EyeOff className="h-3 w-3" />
+                                          </button>
+                                        </span>
                                       ) : (
                                         <span className={cellIncome > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
                                           {cellIncome > 0 ? `+${fmtNum(cellIncome)}` : "—"}
