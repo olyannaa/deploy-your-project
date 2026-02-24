@@ -31,9 +31,9 @@ import {
   setGlobalPayrolls,
   getEmployeeAccrued,
   type SalaryPayroll,
-  type SalaryPaymentRecord,
 } from "@/data/salaryStore";
 import { mockEmployees, mockDepartments } from "@/data/mockData";
+import { TimeTrackingDialog } from "@/components/TimeTrackingDialog";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -43,14 +43,6 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function getPayrollOptions(): { value: string; label: string }[] {
-  const payrolls = getGlobalPayrolls();
-  return payrolls.map((p) => ({
-    value: p.id,
-    label: `${p.date.split("-").reverse().join(".")} — ${p.type === "advance" ? "Аванс" : "ЗП"} (${p.monthLabel})`,
-  }));
-}
-
 interface SalaryPaymentsTabProps {
   onPayrollProcessed?: () => void;
 }
@@ -58,12 +50,13 @@ interface SalaryPaymentsTabProps {
 export default function SalaryPaymentsTab({ onPayrollProcessed }: SalaryPaymentsTabProps) {
   const payrolls = getGlobalPayrolls();
 
-  // Default to first unprocessed, or last one
   const defaultPayroll = payrolls.find((p) => !p.processed) || payrolls[payrolls.length - 1];
   const [selectedPayrollId, setSelectedPayrollId] = useState(defaultPayroll?.id || "");
   const [localPayrolls, setLocalPayrolls] = useState<SalaryPayroll[]>(payrolls);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [editAmounts, setEditAmounts] = useState<Record<string, string>>({});
+  const [selectedEmployee, setSelectedEmployee] = useState<{ id: string; name: string; dailyRate?: number; contractRate?: number } | null>(null);
+  const [isTimeDialogOpen, setIsTimeDialogOpen] = useState(false);
 
   const selectedPayroll = localPayrolls.find((p) => p.id === selectedPayrollId);
   const payrollOptions = useMemo(() => {
@@ -75,7 +68,6 @@ export default function SalaryPaymentsTab({ onPayrollProcessed }: SalaryPayments
 
   const isProcessed = selectedPayroll?.processed || false;
 
-  // Compute totals
   const totalAmount = selectedPayroll?.employees.reduce((s, e) => s + e.amount, 0) || 0;
   const totalPaid = selectedPayroll?.employees.filter((e) => e.paid).reduce((s, e) => s + e.amount, 0) || 0;
   const totalUnpaid = totalAmount - totalPaid;
@@ -137,30 +129,40 @@ export default function SalaryPaymentsTab({ onPayrollProcessed }: SalaryPayments
     onPayrollProcessed?.();
   };
 
-  // Employee details enrichment
   const getEmployeeDetails = (empId: string) => {
     const emp = mockEmployees.find((e) => e.id === empId);
-    if (!emp) return { department: "—", isContract: false, rate: 0 };
+    if (!emp) return { department: "—", isContract: false, rate: 0, dailyRate: 0, contractRate: undefined };
     const dept = mockDepartments.find((d) => d.id === emp.primaryDepartmentId);
     return {
       department: dept?.name || "—",
       isContract: !!emp.contractRate,
       rate: emp.contractRate || emp.dailyRate || 0,
+      dailyRate: emp.dailyRate || 0,
+      contractRate: emp.contractRate,
     };
   };
 
-  // Get month key from payroll date for accrued calculation
   const getAccruedMonth = () => {
     if (!selectedPayroll) return "";
     const d = new Date(selectedPayroll.date);
     if (selectedPayroll.type === "salary") {
-      // 5th = salary for previous month
       d.setMonth(d.getMonth() - 1);
     }
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   };
 
   const accruedMonth = getAccruedMonth();
+
+  const handleEmployeeClick = (empId: string, empName: string) => {
+    const details = getEmployeeDetails(empId);
+    setSelectedEmployee({
+      id: empId,
+      name: empName,
+      dailyRate: details.dailyRate,
+      contractRate: details.contractRate,
+    });
+    setIsTimeDialogOpen(true);
+  };
 
   return (
     <div className="space-y-4">
@@ -253,7 +255,15 @@ export default function SalaryPaymentsTab({ onPayrollProcessed }: SalaryPayments
                         disabled={isProcessed}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{emp.employeeName}</TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        className="text-left text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-medium"
+                        onClick={() => handleEmployeeClick(emp.employeeId, emp.employeeName)}
+                      >
+                        {emp.employeeName}
+                      </button>
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {details.department}
                     </TableCell>
@@ -368,6 +378,18 @@ export default function SalaryPaymentsTab({ onPayrollProcessed }: SalaryPayments
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Time tracking dialog */}
+      {selectedEmployee && (
+        <TimeTrackingDialog
+          open={isTimeDialogOpen}
+          onOpenChange={setIsTimeDialogOpen}
+          employeeId={selectedEmployee.id}
+          employeeName={selectedEmployee.name}
+          hourlyRate={selectedEmployee.dailyRate}
+          contractRate={selectedEmployee.contractRate}
+        />
+      )}
     </div>
   );
 }
