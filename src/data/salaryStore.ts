@@ -17,7 +17,7 @@ export interface SalaryPayroll {
   id: string;
   /** YYYY-MM-DD */
   date: string;
-  /** "salary" = ЗП (5-е число), "advance" = Аванс (20-е число) */
+  /** "salary" = ЗП (10-е число след. месяца), "advance" = Аванс (25-е число) */
   type: "salary" | "advance";
   /** Month label for display */
   monthLabel: string;
@@ -83,8 +83,8 @@ function buildInitialPayrolls(): SalaryPayroll[] {
   return [
     // January: advance paid, salary paid
     {
-      id: "payroll-2026-01-20",
-      date: "2026-01-20",
+      id: "payroll-2026-01-25",
+      date: "2026-01-25",
       type: "advance",
       monthLabel: "Январь 2026",
       processed: true,
@@ -99,8 +99,8 @@ function buildInitialPayrolls(): SalaryPayroll[] {
       }).filter((e) => e.amount > 0),
     },
     {
-      id: "payroll-2026-02-05",
-      date: "2026-02-05",
+      id: "payroll-2026-02-10",
+      date: "2026-02-10",
       type: "salary",
       monthLabel: "Январь 2026 (остаток)",
       processed: true,
@@ -117,8 +117,8 @@ function buildInitialPayrolls(): SalaryPayroll[] {
     },
     // February: advance not yet paid
     {
-      id: "payroll-2026-02-20",
-      date: "2026-02-20",
+      id: "payroll-2026-02-25",
+      date: "2026-02-25",
       type: "advance",
       monthLabel: "Февраль 2026",
       processed: false,
@@ -203,13 +203,13 @@ export function getSalaryDatesForHalfYear(): { date: string; label: string; type
   for (let m = startMonth; m <= endMonth; m++) {
     const mm = String(m + 1).padStart(2, "0");
     dates.push({
-      date: `${year}-${mm}-05`,
-      label: `05.${mm}`,
+      date: `${year}-${mm}-10`,
+      label: `10.${mm}`,
       type: "salary",
     });
     dates.push({
-      date: `${year}-${mm}-20`,
-      label: `20.${mm}`,
+      date: `${year}-${mm}-25`,
+      label: `25.${mm}`,
       type: "advance",
     });
   }
