@@ -435,12 +435,14 @@ export default function Finance() {
   const hasMissedIncome = (projectId: string, colIndex: number, col: typeof columns[number]) => {
     if (col.type !== "week") return false;
     if (!isDatePast(col)) return false;
-    if (hiddenMissedCells.has(`${projectId}-${colIndex}`)) return false;
     const planned = getPlannedCellTotal(projectId, colIndex);
     if (planned <= 0) return false;
     const actual = getIncomeCellTotal(projectId, col.weekIndex);
     return actual <= 0;
   };
+
+  const isMissedHidden = (projectId: string, colIndex: number) =>
+    hiddenMissedCells.has(`${projectId}-${colIndex}`);
 
   const openPaymentDialog = (projectId: string, weekIndex: number, lockedTask?: any) => {
     setEditCell({ projectId, weekIndex });
@@ -782,6 +784,8 @@ export default function Finance() {
                           const cellExpense = getCellTotal(project.id, wi);
                           const cellIncome = getIncomeCellTotal(project.id, wi);
                           const missed = hasMissedIncome(project.id, ci, col);
+                          const missedHidden = missed && isMissedHidden(project.id, ci);
+                          const showMissedWarning = missed && !missedHidden;
                           return (
                             <TableCell key={ci} className="p-0 border-l border-border">
                               <div className="min-w-[70px] flex flex-col text-xs tabular-nums divide-y divide-border">
@@ -818,11 +822,11 @@ export default function Finance() {
                                   <TooltipTrigger asChild>
                                     <button
                                       type="button"
-                                      className={`w-full px-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-default ${missed ? "bg-destructive/15" : ""}`}
-                                      disabled={isReadOnly && !(missed && isAdminOrGip)}
+                                      className={`w-full px-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-default ${showMissedWarning ? "bg-destructive/15" : ""}`}
+                                      disabled={isReadOnly && !(showMissedWarning && isAdminOrGip)}
                                       onClick={() => !isReadOnly && openIncomeDialog(project.id, wi)}
                                     >
-                                      {missed ? (
+                                      {showMissedWarning ? (
                                         <span className="text-destructive text-[10px] font-medium flex items-center gap-0.5">
                                           ⚠ Нет прихода
                                           <button
@@ -841,12 +845,12 @@ export default function Finance() {
                                       )}
                                     </button>
                                   </TooltipTrigger>
-                                  {missed && (
+                                  {showMissedWarning && (
                                     <TooltipContent side="top">
                                       <p className="text-xs text-destructive">Планируемый приход не был получен</p>
                                     </TooltipContent>
                                   )}
-                                  {!missed && incEntries.length > 0 && (
+                                  {!showMissedWarning && incEntries.length > 0 && (
                                     <TooltipContent side="top" className="max-w-[300px]">
                                       <p className="font-semibold text-xs mb-1 text-green-600">Приходы:</p>
                                       <div className="space-y-1">
