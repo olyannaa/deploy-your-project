@@ -176,3 +176,36 @@ export function getSalaryDatesForHalfYear(): { date: string; label: string; type
   }
   return dates;
 }
+
+/** Get total FOT (payroll costs) for a specific project */
+export function getProjectFOT(projectId: string): number {
+  let total = 0;
+  for (const [empId, months] of Object.entries(demoMonthlyTime)) {
+    const emp = mockEmployees.find((e) => e.id === empId);
+    if (!emp || emp.roles.includes("accountant")) continue;
+    for (const [, projects] of Object.entries(months)) {
+      const days = projects[projectId] || 0;
+      if (days > 0) {
+        total += days * (emp.dailyRate || 0);
+      }
+    }
+  }
+  return total;
+}
+
+/** Get total FOT across all projects */
+export function getTotalFOT(): number {
+  const projectIds = new Set<string>();
+  for (const months of Object.values(demoMonthlyTime)) {
+    for (const projects of Object.values(months)) {
+      for (const pid of Object.keys(projects)) {
+        projectIds.add(pid);
+      }
+    }
+  }
+  let total = 0;
+  for (const pid of projectIds) {
+    total += getProjectFOT(pid);
+  }
+  return total;
+}
