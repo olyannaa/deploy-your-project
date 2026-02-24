@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Bell } from "lucide-react";
+import { Bell, AlertTriangle } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -11,17 +11,27 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getMissedIncomeNotifications } from "@/pages/Finance";
 
 export default function NotificationBell() {
   const { user } = useAuth();
+  const isAccountant = user?.roles?.includes("accountant");
+  const isGip = user?.roles?.includes("gip");
+  const isAdmin = user?.roles?.includes("admin");
+  const showMissedIncomes = isAccountant || isGip || isAdmin;
 
   const { data: allTasks = [] } = useQuery<any[]>({
     queryKey: ["tasks"],
     queryFn: () => apiFetch("/tasks"),
   });
 
-  // Notifications = new accounting tasks assigned to the current user
-  const notifications = useMemo(() => {
+  const { data: projects = [] } = useQuery<any[]>({
+    queryKey: ["projects"],
+    queryFn: () => apiFetch("/projects"),
+  });
+
+  // Task notifications
+  const taskNotifications = useMemo(() => {
     return allTasks
       .filter(
         (t: any) =>
@@ -35,27 +45,41 @@ export default function NotificationBell() {
         project: t.projectName || "Без проекта",
         status: t.status,
         date: t.plannedStartDate,
+        type: "task" as const,
       }));
   }, [allTasks, user.id]);
 
-  const newCount = notifications.filter((n) => n.status === "new").length;
+  // Missed income notifications
+  const missedIncomeNotifications = useMemo(() => {
+    if (!showMissedIncomes || projects.length === 0) return [];
+    const activeProjects = projects
+      .filter((p: any) => p.status === "active" || p.status === "completed")
+      .map((p: any) => ({ id: p.id, name: p.name }));
+    return getMissedIncomeNotifications(activeProjects);
+  }, [projects, showMissedIncomes]);
+
+  const newTaskCount = taskNotifications.filter((n) => n.status === "new").length;
+  const totalCount = newTaskCount + missedIncomeNotifications.length;
 
   const statusLabels: Record<string, string> = {
     new: "Новая",
     in_progress: "В работе",
   };
 
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
+
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
-          {newCount > 0 && (
+          {totalCount > 0 && (
             <Badge
               variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px]"
             >
-              {newCount}
+              {totalCount}
             </Badge>
           )}
         </Button>
@@ -64,17 +88,33 @@ export default function NotificationBell() {
         <div className="px-4 py-3 border-b border-border">
           <p className="text-sm font-semibold">Уведомления</p>
           <p className="text-xs text-muted-foreground">
-            {newCount > 0 ? `${newCount} новых задач` : "Нет новых задач"}
+            {totalCount > 0 ? `${totalCount} уведомлений` : "Нет уведомлений"}
           </p>
         </div>
         <ScrollArea className="max-h-[300px]">
-          {notifications.length === 0 ? (
+          {totalCount === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
               Нет уведомлений
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {notifications.map((n) => (
+              {/* Missed income alerts */}
+              {missedIncomeNotifications.map((n, i) => (
+                <div key={`missed-${i}`} className="px-4 py-3 text-sm bg-destructive/5">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                    <p className="font-medium text-destructive">Нет прихода</p>
+                  </div>
+                  <p className="text-xs mt-1">
+                    {n.projectName} — неделя {n.weekLabel}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Ожидалось: {formatCurrency(n.plannedAmount)}
+                  </p>
+                </div>
+              ))}
+              {/* Task notifications */}
+              {taskNotifications.map((n) => (
                 <div
                   key={n.id}
                   className={`px-4 py-3 text-sm ${n.status === "new" ? "bg-primary/5" : ""}`}

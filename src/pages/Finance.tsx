@@ -163,6 +163,38 @@ export function getProjectSubcontractorPaid(projectId: string, _subcontractorId:
   return Object.values(p).flat().filter((v) => v.reason === "subcontract").reduce((sum, v) => sum + v.amount, 0);
 }
 
+/** Get list of missed income notifications for bell icon */
+export function getMissedIncomeNotifications(projects: { id: string; name: string }[]): { projectId: string; projectName: string; weekLabel: string; plannedAmount: number }[] {
+  const weeks = generateWeeks();
+  const salaryDates = getSalaryDatesForHalfYear();
+  const allCols: Array<
+    | { type: "week"; weekIndex: number; date: Date; sortKey: number }
+    | { type: "salary"; date: string; sortKey: number }
+  > = [];
+  weeks.forEach((w, i) => allCols.push({ type: "week", weekIndex: i, date: w, sortKey: w.getTime() }));
+  salaryDates.forEach((sd) => allCols.push({ type: "salary", date: sd.date, sortKey: new Date(sd.date).getTime() }));
+  allCols.sort((a, b) => a.sortKey - b.sortKey);
+
+  const today = new Date();
+  const results: { projectId: string; projectName: string; weekLabel: string; plannedAmount: number }[] = [];
+  for (const proj of projects) {
+    for (let ci = 0; ci < allCols.length; ci++) {
+      const col = allCols[ci];
+      if (col.type !== "week") continue;
+      if (col.date >= today) continue;
+      const planned = globalPlannedIncomes[proj.id]?.[ci];
+      if (!planned || planned.length === 0) continue;
+      const plannedTotal = planned.reduce((s, e) => s + e.amount, 0);
+      const actual = globalIncomes[proj.id]?.[col.weekIndex];
+      const actualTotal = actual ? actual.reduce((s, e) => s + e.amount, 0) : 0;
+      if (actualTotal <= 0) {
+        results.push({ projectId: proj.id, projectName: proj.name, weekLabel: format(col.date, "dd.MM"), plannedAmount: plannedTotal });
+      }
+    }
+  }
+  return results;
+}
+
 const reasonLabels: Record<string, string> = {
   salary: "ЗП / Аванс",
   subcontract: "Субподрядчики",
