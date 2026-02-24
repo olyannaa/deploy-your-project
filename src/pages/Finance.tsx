@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 import SalaryDistributionTab from "@/components/finance/SalaryDistributionTab";
 import SalaryPaymentsTab from "@/components/finance/SalaryPaymentsTab";
-import { getSalaryPaidOnDate, getSalaryDatesForHalfYear, getProjectFOT, getTotalFOT } from "@/data/salaryStore";
+import { getSalaryPaidOnDate, getProjectSalaryOnDate, getSalaryDatesForHalfYear, getProjectFOT, getTotalFOT } from "@/data/salaryStore";
 
 interface Project {
   id: string;
@@ -538,23 +538,23 @@ export default function Finance() {
                         {/* Date columns - combined income + expense */}
                         {columns.map((col, ci) => {
                           if (col.type === "salary") {
-                            const salaryTotal = getSalaryPaidOnDate(col.date);
+                            const projectSalary = getProjectSalaryOnDate(project.id, col.date);
                             return (
                               <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
-                                {salaryTotal > 0 ? (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md text-destructive font-medium">
-                                        −{fmtNum(salaryTotal)}
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top">
-                                      <p className="text-xs">{col.salaryType === "advance" ? "Аванс" : "ЗП"} — проведено</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                ) : (
-                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
-                                )}
+                                <div className="min-w-[70px] flex flex-col items-center justify-center text-xs tabular-nums py-0.5 gap-0.5">
+                                  {projectSalary > 0 ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-destructive font-medium cursor-default">−{fmtNum(Math.round(projectSalary))}</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <p className="text-xs">{col.salaryType === "advance" ? "Аванс" : "ЗП"} — доля проекта</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </div>
                               </TableCell>
                             );
                           }
@@ -570,7 +570,6 @@ export default function Finance() {
                               className="p-1 border-l border-border transition-colors cursor-pointer"
                               onClick={() => {
                                 if (isReadOnly) return;
-                                // Default: open payment dialog; hold shift for income
                                 openPaymentDialog(project.id, wi);
                               }}
                               onContextMenu={(e) => {
@@ -579,18 +578,18 @@ export default function Finance() {
                                 openIncomeDialog(project.id, wi);
                               }}
                             >
-                              {hasData ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="min-w-[70px] flex flex-col items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border gap-0.5 py-0.5">
-                                      {cellIncome > 0 && (
-                                        <span className="text-green-600 dark:text-green-400">+{fmtNum(cellIncome)}</span>
-                                      )}
-                                      {cellExpense > 0 && (
-                                        <span className="text-destructive">−{fmtNum(cellExpense)}</span>
-                                      )}
-                                    </div>
-                                  </TooltipTrigger>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="min-w-[70px] flex flex-col items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border gap-0.5 py-0.5">
+                                    <span className={cellExpense > 0 ? "text-destructive" : "text-muted-foreground"}>
+                                      {cellExpense > 0 ? `−${fmtNum(cellExpense)}` : "—"}
+                                    </span>
+                                    <span className={cellIncome > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                                      {cellIncome > 0 ? `+${fmtNum(cellIncome)}` : "—"}
+                                    </span>
+                                  </div>
+                                </TooltipTrigger>
+                                {hasData && (
                                   <TooltipContent side="top" className="max-w-[300px]">
                                     {incEntries.length > 0 && (
                                       <>
@@ -619,12 +618,8 @@ export default function Finance() {
                                       </>
                                     )}
                                   </TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
-                                  —
-                                </div>
-                              )}
+                                )}
+                              </Tooltip>
                             </TableCell>
                           );
                         })}
@@ -747,13 +742,12 @@ export default function Finance() {
                             const salaryTotal = getSalaryPaidOnDate(col.date);
                             return (
                               <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
-                                {salaryTotal > 0 ? (
-                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-[10px] tabular-nums text-destructive font-semibold">
-                                    −{fmtNum(salaryTotal)}
-                                  </div>
-                                ) : (
-                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
-                                )}
+                                <div className="min-w-[70px] flex flex-col items-center justify-center text-[10px] tabular-nums py-0.5 gap-0.5">
+                                  <span className={salaryTotal > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>
+                                    {salaryTotal > 0 ? `−${fmtNum(salaryTotal)}` : "—"}
+                                  </span>
+                                  <span className="text-muted-foreground">—</span>
+                                </div>
                               </TableCell>
                             );
                           }
@@ -762,14 +756,14 @@ export default function Finance() {
                           const weekIncome = activeProjects.reduce((s, p) => s + getIncomeCellTotal(p.id, wi), 0) + getIncomeCellTotal("__no_project__", wi);
                           return (
                             <TableCell key={ci} className="p-1 border-l border-border">
-                              {(weekPaid > 0 || weekIncome > 0) ? (
-                                <div className="h-7 min-w-[70px] flex flex-col items-center justify-center text-[10px] tabular-nums">
-                                  {weekIncome > 0 && <span className="text-green-600 dark:text-green-400">+{fmtNum(weekIncome)}</span>}
-                                  {weekPaid > 0 && <span className="text-destructive">−{fmtNum(weekPaid)}</span>}
-                                </div>
-                              ) : (
-                                <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
-                              )}
+                              <div className="min-w-[70px] flex flex-col items-center justify-center text-[10px] tabular-nums py-0.5 gap-0.5">
+                                <span className={weekPaid > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>
+                                  {weekPaid > 0 ? `−${fmtNum(weekPaid)}` : "—"}
+                                </span>
+                                <span className={weekIncome > 0 ? "text-green-600 dark:text-green-400 font-semibold" : "text-muted-foreground"}>
+                                  {weekIncome > 0 ? `+${fmtNum(weekIncome)}` : "—"}
+                                </span>
+                              </div>
                             </TableCell>
                           );
                         })}

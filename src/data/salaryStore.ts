@@ -152,6 +152,45 @@ export function getSalaryPaidOnDate(date: string): number {
     .reduce((sum, p) => sum + p.employees.filter((e) => e.paid).reduce((s, e) => s + e.amount, 0), 0);
 }
 
+/** Get per-project salary distribution for a specific payroll date.
+ *  Distributes each employee's payment across projects based on their time coefficients.
+ */
+export function getProjectSalaryOnDate(projectId: string, date: string): number {
+  const payrolls = globalPayrolls.filter((p) => p.date === date && p.processed);
+  let total = 0;
+  for (const payroll of payrolls) {
+    // Determine the month for time data
+    const d = new Date(payroll.date);
+    if (payroll.type === "salary") {
+      d.setMonth(d.getMonth() - 1);
+    }
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+    for (const emp of payroll.employees) {
+      if (!emp.paid) continue;
+      const empData = mockEmployees.find((e) => e.id === emp.employeeId);
+      if (!empData) continue;
+
+      const isContract = !!empData.contractRate;
+      const timeData = demoMonthlyTime[emp.employeeId]?.[month] || {};
+      const totalDays = Object.values(timeData).reduce((s, dd) => s + dd, 0);
+      const projectDays = timeData[projectId] || 0;
+
+      if (isContract) {
+        // Contract employees: distribute equally across their projects
+        const projectCount = Object.keys(timeData).length || 1;
+        if (timeData[projectId] !== undefined) {
+          total += emp.amount / projectCount;
+        }
+      } else if (totalDays > 0 && projectDays > 0) {
+        // Staff: distribute by proportion of days
+        total += Math.round(emp.amount * (projectDays / totalDays));
+      }
+    }
+  }
+  return total;
+}
+
 /** Get all salary dates in the current half-year for Finance table columns */
 export function getSalaryDatesForHalfYear(): { date: string; label: string; type: "salary" | "advance" }[] {
   const now = new Date();
