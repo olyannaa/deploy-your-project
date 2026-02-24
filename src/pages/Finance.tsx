@@ -113,9 +113,9 @@ function buildInitialPayments(): Record<string, Record<number, PaymentEntry[]>> 
       1: [{ amount: 350000, reason: "subcontract", taskTitle: "Остаток субподряд — Школа" }],
     },
     "__no_project__": {
-      2: [{ amount: 250000, taskId: "acc-1", taskTitle: "Выплата ЗП за март", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }] }],
-      4: [{ amount: 385000, taskId: "acc-7", taskTitle: "Выплата ЗП (общая) за май", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }, { id: "user-6", name: "Волков Д.К.", amount: 30000 }, { id: "user-7", name: "Лебедева О.Н.", amount: 48000 }, { id: "user-8", name: "Новиков С.В.", amount: 57000 }] }],
-      5: [{ amount: 180000, taskId: "acc-4", taskTitle: "Выплата аванса за апрель", reason: "salary", employeePayments: [{ id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-6", name: "Волков Д.К.", amount: 60000 }] }],
+      2: [{ amount: 85000, taskId: "acc-1", taskTitle: "Оплата аренды офиса за март", reason: "extra_costs" }],
+      4: [{ amount: 12000, taskId: "acc-7", taskTitle: "Оплата канцтоваров и расходных материалов", reason: "extra_costs" }],
+      5: [{ amount: 45000, taskId: "acc-4", taskTitle: "Оплата хостинга и ПО", reason: "other" }],
     },
   };
 }

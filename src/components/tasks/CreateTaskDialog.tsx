@@ -63,7 +63,6 @@ const taskTypeLabels: Record<string, string> = {
 };
 
 const allAccountingSubtypeOptions = [
-  { id: "salary", label: "Зарплата/Аванс" },
   { id: "subcontractors", label: "Субподрядчики/Фриланс" },
   { id: "extra_costs", label: "Доп. затраты" },
   { id: "other", label: "Другое" },
@@ -174,17 +173,11 @@ export default function CreateTaskDialog({
   );
 
   // All users for accounting salary selection (no project filter)
-  const { data: allUsers = [] } = useQuery({
-    queryKey: ["users", "all"],
-    queryFn: () => apiFetch<UserOption[]>("/users"),
-    enabled: open && taskType === "accounting" && accountingSubtype === "salary",
-  });
-
-  // Project members for accounting salary selection (with project filter)
+  // Project members for accounting subcontractor selection (with project filter)
   const { data: accountingProjectMembers = [] } = useQuery({
     queryKey: ["project", accountingProjectId, "members", "accounting"],
     queryFn: () => apiFetch<MemberOption[]>(`/projects/${accountingProjectId}/members`),
-    enabled: open && taskType === "accounting" && (accountingSubtype === "salary" || accountingSubtype === "subcontractors") && !!accountingProjectId,
+    enabled: open && taskType === "accounting" && accountingSubtype === "subcontractors" && !!accountingProjectId,
   });
 
   // Project subcontractors for accounting
@@ -193,28 +186,6 @@ export default function CreateTaskDialog({
     queryFn: () => apiFetch<any[]>(`/projects/${accountingProjectId}/subcontractors`),
     enabled: open && taskType === "accounting" && accountingSubtype === "subcontractors" && !!accountingProjectId,
   });
-
-  const salaryEmployeeList = useMemo(() => {
-    if (accountingSubtype !== "salary") return [];
-    if (accountingProjectId) {
-      return accountingProjectMembers.map((m) => ({
-        id: m.id,
-        fullName: m.fullName,
-        dailyRate: (allUsers.find((u) => u.id === m.id) as any)?.dailyRate ?? 0,
-        contractRate: (allUsers.find((u) => u.id === m.id) as any)?.contractRate ?? null,
-        contractorName: m.contractorName,
-        workDays: Math.floor(Math.random() * 22) + 1,
-      }));
-    }
-    return allUsers.map((u) => ({
-      id: u.id,
-      fullName: u.fullName,
-      dailyRate: (u as any).dailyRate ?? 0,
-      contractRate: (u as any).contractRate ?? null,
-      contractorName: u.contractorName,
-      workDays: Math.floor(Math.random() * 22) + 1,
-    }));
-  }, [accountingSubtype, accountingProjectId, accountingProjectMembers, allUsers]);
 
   const subcontractorEmployeeList = useMemo(() => {
     if (accountingSubtype !== "subcontractors" || !accountingProjectId) return [];
@@ -514,10 +485,6 @@ export default function CreateTaskDialog({
                   const newProjectId = v === "none" ? "" : v;
                   setAccountingProjectId(newProjectId);
                   setSelectedEmployeeIds([]);
-                  // Reset salary subtype when project is selected (salary only available without project)
-                  if (newProjectId && accountingSubtype === "salary") {
-                    setAccountingSubtype("none");
-                  }
                 }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Без привязки к проекту" />
@@ -546,13 +513,7 @@ export default function CreateTaskDialog({
                   <SelectValue placeholder="Выберите вид" />
                 </SelectTrigger>
                 <SelectContent>
-                  {allAccountingSubtypeOptions
-                    .filter((opt) => {
-                      // Hide "Зарплата/Аванс" when task is linked to a project
-                      if (opt.id === "salary" && (projectId || accountingProjectId)) return false;
-                      return true;
-                    })
-                    .map((opt) => (
+                  {allAccountingSubtypeOptions.map((opt) => (
                     <SelectItem key={opt.id} value={opt.id}>
                       {opt.label}
                     </SelectItem>
@@ -562,14 +523,6 @@ export default function CreateTaskDialog({
             </div>
           )}
 
-          {taskType === "accounting" && accountingSubtype === "salary" && (
-            <AccountingEmployeeSelect
-              label="Сотрудники"
-              employees={salaryEmployeeList}
-              selectedIds={selectedEmployeeIds}
-              onSelectionChange={setSelectedEmployeeIds}
-            />
-          )}
 
           {taskType === "accounting" && accountingSubtype === "subcontractors" && accountingProjectId && (
             <AccountingEmployeeSelect
