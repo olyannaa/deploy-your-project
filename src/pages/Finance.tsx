@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/popover";
 import { differenceInDays, parseISO, startOfWeek, addWeeks, format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Plus, SlidersHorizontal } from "lucide-react";
+import { Plus, SlidersHorizontal, Pencil, ArrowLeftRight, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 import SalaryDistributionTab from "@/components/finance/SalaryDistributionTab";
@@ -46,6 +46,16 @@ export interface PaymentEntry {
   reason?: string;
   employeePayments?: { id: string; name: string; amount: number }[];
 }
+
+export interface PlannedIncomeEntry {
+  id: string;
+  title: string;
+  amount: number;
+}
+
+let globalPlannedIncomes: Record<string, Record<number, PlannedIncomeEntry[]>> = {};
+export function getGlobalPlannedIncomes() { return globalPlannedIncomes; }
+export function setGlobalPlannedIncomes(p: Record<string, Record<number, PlannedIncomeEntry[]>>) { globalPlannedIncomes = p; }
 
 export function generateWeeks(_projects?: { startDate: string; endDate: string }[]): Date[] {
   const now = new Date();
@@ -244,6 +254,10 @@ export default function Finance() {
   const updatePayments = (next: Record<string, Record<number, PaymentEntry[]>>) => { setPayments(next); setGlobalPayments(next); };
   const updateIncomes = (next: Record<string, Record<number, PaymentEntry[]>>) => { setIncomes(next); setGlobalIncomes(next); };
 
+  // Planned incomes
+  const [plannedIncomes, setPlannedIncomes] = useState<Record<string, Record<number, PlannedIncomeEntry[]>>>(globalPlannedIncomes);
+  const updatePlannedIncomes = (next: Record<string, Record<number, PlannedIncomeEntry[]>>) => { setPlannedIncomes(next); setGlobalPlannedIncomes(next); };
+
   // View mode (Факт / План)
   const [viewMode, setViewMode] = useState<"fact" | "plan">("fact");
 
@@ -259,7 +273,7 @@ export default function Finance() {
     });
   };
 
-  // Dialog state
+  // Fact dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"payment" | "income">("payment");
   const [editCell, setEditCell] = useState<{ projectId: string; weekIndex: number } | null>(null);
@@ -269,6 +283,81 @@ export default function Finance() {
   const [employeeAmounts, setEmployeeAmounts] = useState<Record<string, string>>({});
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [createTaskProjectId, setCreateTaskProjectId] = useState<string | undefined>();
+
+  // Plan dialog state
+  const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [planCell, setPlanCell] = useState<{ projectId: string; colIndex: number; weekDate: Date } | null>(null);
+  const [planNewTitle, setPlanNewTitle] = useState("");
+  const [planNewAmount, setPlanNewAmount] = useState("");
+  const [planEditId, setPlanEditId] = useState<string | null>(null);
+  const [planEditTitle, setPlanEditTitle] = useState("");
+  const [planEditAmount, setPlanEditAmount] = useState("");
+
+  const openPlanDialog = (projectId: string, colIndex: number, weekDate: Date) => {
+    setPlanCell({ projectId, colIndex, weekDate });
+    setPlanNewTitle(""); setPlanNewAmount(""); setPlanEditId(null);
+    setPlanDialogOpen(true);
+  };
+  const getPlanEntries = () => {
+    if (!planCell) return [];
+    return plannedIncomes[planCell.projectId]?.[planCell.colIndex] || [];
+  };
+  const addPlanEntry = () => {
+    if (!planCell) return;
+    const amount = parseFloat(planNewAmount) || 0;
+    if (amount <= 0 || !planNewTitle.trim()) return;
+    const entry: PlannedIncomeEntry = { id: `plan-${Date.now()}`, title: planNewTitle.trim(), amount };
+    const existing = plannedIncomes[planCell.projectId]?.[planCell.colIndex] || [];
+    updatePlannedIncomes({
+      ...plannedIncomes,
+      [planCell.projectId]: { ...plannedIncomes[planCell.projectId], [planCell.colIndex]: [...existing, entry] },
+    });
+    setPlanNewTitle(""); setPlanNewAmount("");
+  };
+  const deletePlanEntry = (entryId: string) => {
+    if (!planCell) return;
+    const existing = plannedIncomes[planCell.projectId]?.[planCell.colIndex] || [];
+    updatePlannedIncomes({
+      ...plannedIncomes,
+      [planCell.projectId]: { ...plannedIncomes[planCell.projectId], [planCell.colIndex]: existing.filter((e) => e.id !== entryId) },
+    });
+  };
+  const startEditPlanEntry = (entry: PlannedIncomeEntry) => {
+    setPlanEditId(entry.id); setPlanEditTitle(entry.title); setPlanEditAmount(String(entry.amount));
+  };
+  const saveEditPlanEntry = () => {
+    if (!planCell || !planEditId) return;
+    const existing = plannedIncomes[planCell.projectId]?.[planCell.colIndex] || [];
+    updatePlannedIncomes({
+      ...plannedIncomes,
+      [planCell.projectId]: {
+        ...plannedIncomes[planCell.projectId],
+        [planCell.colIndex]: existing.map((e) => e.id === planEditId ? { ...e, title: planEditTitle.trim(), amount: parseFloat(planEditAmount) || e.amount } : e),
+      },
+    });
+    setPlanEditId(null);
+  };
+  const getPlannedCellTotal = (projectId: string, colIndex: number) => {
+    const entries = plannedIncomes[projectId]?.[colIndex];
+    if (!entries || entries.length === 0) return 0;
+    return entries.reduce((s, e) => s + e.amount, 0);
+  };
+
+  // Check if a column date is in the past
+  const isDatePast = (col: typeof columns[number]) => {
+    const d = col.type === "week" ? col.date : new Date(col.date);
+    return d < today;
+  };
+
+  // Check if planned income exists but no actual income for a week column
+  const hasMissedIncome = (projectId: string, colIndex: number, col: typeof columns[number]) => {
+    if (col.type !== "week") return false;
+    if (!isDatePast(col)) return false;
+    const planned = getPlannedCellTotal(projectId, colIndex);
+    if (planned <= 0) return false;
+    const actual = getIncomeCellTotal(projectId, col.weekIndex);
+    return actual <= 0;
+  };
 
   const openPaymentDialog = (projectId: string, weekIndex: number) => {
     setEditCell({ projectId, weekIndex });
@@ -535,8 +624,35 @@ export default function Finance() {
                             </TableCell>
                           );
                         })}
-                        {/* Date columns - combined income + expense */}
+                        {/* Date columns */}
                         {columns.map((col, ci) => {
+                          if (viewMode === "plan") {
+                            // Plan mode: only show planned incomes
+                            if (col.type === "salary") {
+                              return <TableCell key={ci} className="p-1 border-l border-border bg-accent/20"><div className="h-7 min-w-[70px]" /></TableCell>;
+                            }
+                            const plannedTotal = getPlannedCellTotal(project.id, ci);
+                            const missed = hasMissedIncome(project.id, ci, col);
+                            return (
+                              <TableCell
+                                key={ci}
+                                className={`p-0 border-l border-border cursor-pointer hover:bg-muted/50 transition-colors ${missed ? "bg-destructive/20" : ""}`}
+                                onClick={() => openPlanDialog(project.id, ci, col.date)}
+                              >
+                                <div className="min-w-[70px] flex items-center justify-center text-xs tabular-nums py-2">
+                                  {plannedTotal > 0 ? (
+                                    <span className={`font-medium ${missed ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
+                                      +{fmtNum(plannedTotal)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            );
+                          }
+
+                          // Fact mode
                           if (col.type === "salary") {
                             const projectSalary = getProjectSalaryOnDate(project.id, col.date);
                             return (
@@ -563,6 +679,7 @@ export default function Finance() {
                           const incEntries = incomes[project.id]?.[wi] || [];
                           const cellExpense = getCellTotal(project.id, wi);
                           const cellIncome = getIncomeCellTotal(project.id, wi);
+                          const missed = hasMissedIncome(project.id, ci, col);
                           return (
                             <TableCell key={ci} className="p-0 border-l border-border">
                               <div className="min-w-[70px] flex flex-col text-xs tabular-nums divide-y divide-border">
@@ -594,21 +711,30 @@ export default function Finance() {
                                     </TooltipContent>
                                   )}
                                 </Tooltip>
-                                {/* Bottom sub-cell: Income */}
+                                {/* Bottom sub-cell: Income (with missed income warning) */}
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <button
                                       type="button"
-                                      className="w-full px-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-default"
+                                      className={`w-full px-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-default ${missed ? "bg-destructive/15" : ""}`}
                                       disabled={isReadOnly}
                                       onClick={() => !isReadOnly && openIncomeDialog(project.id, wi)}
                                     >
-                                      <span className={cellIncome > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
-                                        {cellIncome > 0 ? `+${fmtNum(cellIncome)}` : "—"}
-                                      </span>
+                                      {missed ? (
+                                        <span className="text-destructive text-[10px] font-medium">⚠ Нет прихода</span>
+                                      ) : (
+                                        <span className={cellIncome > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                                          {cellIncome > 0 ? `+${fmtNum(cellIncome)}` : "—"}
+                                        </span>
+                                      )}
                                     </button>
                                   </TooltipTrigger>
-                                  {incEntries.length > 0 && (
+                                  {missed && (
+                                    <TooltipContent side="top">
+                                      <p className="text-xs text-destructive">Планируемый приход не был получен</p>
+                                    </TooltipContent>
+                                  )}
+                                  {!missed && incEntries.length > 0 && (
                                     <TooltipContent side="top" className="max-w-[300px]">
                                       <p className="font-semibold text-xs mb-1 text-green-600">Приходы:</p>
                                       <div className="space-y-1">
@@ -741,6 +867,21 @@ export default function Finance() {
                           );
                         })}
                         {columns.map((col, ci) => {
+                          if (viewMode === "plan") {
+                            if (col.type === "salary") {
+                              return <TableCell key={ci} className="p-1 border-l border-border bg-accent/20"><div className="h-7 min-w-[70px]" /></TableCell>;
+                            }
+                            const plannedTotal = activeProjects.reduce((s, p) => s + getPlannedCellTotal(p.id, ci), 0);
+                            return (
+                              <TableCell key={ci} className="p-1 border-l border-border">
+                                <div className="min-w-[70px] flex items-center justify-center text-[10px] tabular-nums py-0.5">
+                                  <span className={plannedTotal > 0 ? "text-green-600 dark:text-green-400 font-semibold" : "text-muted-foreground"}>
+                                    {plannedTotal > 0 ? `+${fmtNum(plannedTotal)}` : "—"}
+                                  </span>
+                                </div>
+                              </TableCell>
+                            );
+                          }
                           if (col.type === "salary") {
                             const salaryTotal = getSalaryPaidOnDate(col.date);
                             return (
@@ -856,6 +997,76 @@ export default function Finance() {
                 disabled={dialogMode === "payment" ? (!dialogTaskId || dialogTaskId === "none") || (hasEmployees ? computeTotalFromEmployees() <= 0 : !dialogAmount) : !dialogAmount}>
                 Сохранить
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Plan income dialog */}
+        <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
+          <DialogContent className="sm:max-w-[540px]">
+            <DialogHeader>
+              <DialogTitle>
+                Планируемые приходы — неделя {planCell ? format(planCell.weekDate, "dd.MM") : ""}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {/* Existing entries */}
+              {getPlanEntries().length > 0 && (
+                <div className="space-y-2">
+                  <Label>Текущие записи</Label>
+                  <div className="space-y-2">
+                    {getPlanEntries().map((entry) => (
+                      <div key={entry.id} className="flex items-center gap-2 rounded-md border border-border p-3">
+                        {planEditId === entry.id ? (
+                          <div className="flex-1 space-y-2">
+                            <Input value={planEditTitle} onChange={(e) => setPlanEditTitle(e.target.value)} />
+                            <div className="flex gap-2">
+                              <Input type="number" value={planEditAmount} onChange={(e) => setPlanEditAmount(e.target.value)} />
+                              <Button size="sm" onClick={saveEditPlanEntry}>Сохранить</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setPlanEditId(null)}>Отмена</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{entry.title}</p>
+                              <p className="text-xs text-muted-foreground">{formatCurrency(entry.amount)}</p>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditPlanEntry(entry)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deletePlanEntry(entry.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add new entry */}
+              <div className="space-y-2">
+                <Label>Добавить новую запись</Label>
+                <Input
+                  placeholder="Напр. Оплата от заказчика за этап 2"
+                  value={planNewTitle}
+                  onChange={(e) => setPlanNewTitle(e.target.value)}
+                />
+                <Input
+                  type="number"
+                  placeholder="Введите сумму"
+                  value={planNewAmount}
+                  onChange={(e) => setPlanNewAmount(e.target.value)}
+                />
+                <Button onClick={addPlanEntry} disabled={!planNewTitle.trim() || !(parseFloat(planNewAmount) > 0)}>
+                  Добавить
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPlanDialogOpen(false)}>Закрыть</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
