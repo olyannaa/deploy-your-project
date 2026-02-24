@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 import SalaryDistributionTab from "@/components/finance/SalaryDistributionTab";
 import SalaryPaymentsTab from "@/components/finance/SalaryPaymentsTab";
-import { getSalaryPaidOnDate, getSalaryDatesForHalfYear, getProjectFOT } from "@/data/salaryStore";
+import { getProjectFOT } from "@/data/salaryStore";
 
 interface Project {
   id: string;
@@ -99,11 +99,6 @@ function buildInitialPayments(): Record<string, Record<number, PaymentEntry[]>> 
     },
     "proj-4": {
       1: [{ amount: 350000, reason: "subcontract", taskTitle: "Остаток субподряд — Школа" }],
-    },
-    "__no_project__": {
-      2: [{ amount: 250000, taskId: "acc-1", taskTitle: "Выплата ЗП за март", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }] }],
-      4: [{ amount: 385000, taskId: "acc-7", taskTitle: "Выплата ЗП (общая) за май", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }, { id: "user-6", name: "Волков Д.К.", amount: 30000 }, { id: "user-7", name: "Лебедева О.Н.", amount: 48000 }, { id: "user-8", name: "Новиков С.В.", amount: 57000 }] }],
-      5: [{ amount: 180000, taskId: "acc-4", taskTitle: "Выплата аванса за апрель", reason: "salary", employeePayments: [{ id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-6", name: "Волков Д.К.", amount: 60000 }] }],
     },
   };
 }
@@ -209,41 +204,8 @@ export default function Finance() {
   );
 
   const weeks = useMemo(() => generateWeeks(activeProjects), [activeProjects]);
-  const salaryDates = useMemo(() => getSalaryDatesForHalfYear(), []);
-  const [salaryRefresh, setSalaryRefresh] = useState(0);
 
-  // Unified column list: weeks + salary dates, sorted chronologically
-  const columns = useMemo(() => {
-    const allCols: Array<
-      | { type: "week"; weekIndex: number; date: Date; label: string; sortKey: number }
-      | { type: "salary"; date: string; label: string; salaryType: "salary" | "advance"; sortKey: number }
-    > = [];
-    weeks.forEach((w, i) => {
-      allCols.push({ type: "week", weekIndex: i, date: w, label: weekLabel(w), sortKey: w.getTime() });
-    });
-    salaryDates.forEach((sd) => {
-      const d = new Date(sd.date);
-      allCols.push({ type: "salary", date: sd.date, label: sd.label, salaryType: sd.type, sortKey: d.getTime() });
-    });
-    allCols.sort((a, b) => a.sortKey - b.sortKey);
-    return allCols;
-  }, [weeks, salaryDates]);
-
-  // Group columns by month for header
-  const columnMonthGroups = useMemo(() => {
-    const groups: { label: string; count: number }[] = [];
-    for (const col of columns) {
-      const d = col.type === "week" ? col.date : new Date(col.date);
-      const label = format(d, "LLLL yyyy", { locale: ru });
-      const last = groups[groups.length - 1];
-      if (last && last.label === label) {
-        last.count++;
-      } else {
-        groups.push({ label, count: 1 });
-      }
-    }
-    return groups;
-  }, [columns]);
+  const monthGroups = useMemo(() => groupByMonth(weeks), [weeks]);
 
   const [payments, setPayments] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalPayments);
   const [incomes, setIncomes] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalIncomes);
@@ -421,41 +383,19 @@ export default function Finance() {
   };
 
   // Render a date cell with both income and expenses
-  const renderDateCell = (projectId: string, col: typeof columns[number], ci: number) => {
-    if (col.type === "salary") {
-      const salaryTotal = getSalaryPaidOnDate(col.date);
-      return (
-        <TableCell key={ci} className="p-1 border-l border-border bg-primary/5">
-          {salaryTotal > 0 ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="h-auto min-h-[28px] min-w-[70px] flex items-center justify-center text-xs tabular-nums text-destructive font-medium">
-                  −{formatCurrency(salaryTotal)}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p className="text-xs">{col.salaryType === "advance" ? "Аванс" : "ЗП"} — проведено</p>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <div className="h-[28px] min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
-          )}
-        </TableCell>
-      );
-    }
-
-    const wi = col.weekIndex;
-    const expEntries = payments[projectId]?.[wi] || [];
-    const incEntries = incomes[projectId]?.[wi] || [];
+  const renderDateCell = (projectId: string, weekIndex: number, weekDate: Date) => {
+    const expEntries = payments[projectId]?.[weekIndex] || [];
+    const incEntries = incomes[projectId]?.[weekIndex] || [];
     const cellExpense = expEntries.reduce((s, e) => s + e.amount, 0);
     const cellIncome = incEntries.reduce((s, e) => s + e.amount, 0);
     const hasData = cellExpense > 0 || cellIncome > 0;
+    const hasExpenseNoIncome = cellExpense > 0 && cellIncome === 0;
 
     return (
       <TableCell
-        key={ci}
+        key={weekIndex}
         className="p-1 border-l border-border transition-colors cursor-pointer"
-        onClick={() => !isReadOnly && openPaymentDialog(projectId, wi)}
+        onClick={() => !isReadOnly && openPaymentDialog(projectId, weekIndex)}
       >
         {hasData ? (
           <Tooltip>
@@ -466,6 +406,12 @@ export default function Finance() {
                 )}
                 {cellExpense > 0 && (
                   <span className="text-destructive">−{formatCurrency(cellExpense)}</span>
+                )}
+                {hasExpenseNoIncome && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+                    <AlertTriangle className="h-3 w-3" />
+                    нет прихода
+                  </span>
                 )}
               </div>
             </TooltipTrigger>
@@ -636,30 +582,23 @@ export default function Finance() {
                           <span className="text-xs font-normal">(Между поступлениями<br />и расходами)</span>
                         </TableHead>
                       )}
-                      {columnMonthGroups.map((mg) => (
+                      {monthGroups.map((mg) => (
                         <TableHead
                           key={mg.label}
                           className="text-center bg-muted border-l border-border capitalize"
-                          colSpan={mg.count}
+                          colSpan={mg.weeks.length}
                         >
                           {mg.label}
                         </TableHead>
                       ))}
                     </TableRow>
                     <TableRow>
-                      {columns.map((col, i) => (
+                      {weeks.map((w, i) => (
                         <TableHead
                           key={i}
-                          className={`text-center text-xs min-w-[80px] border-l border-border ${
-                            col.type === "salary" ? "bg-primary/10 font-semibold" : "bg-muted"
-                          }`}
+                          className="text-center text-xs min-w-[80px] border-l border-border bg-muted"
                         >
-                          {col.label}
-                          {col.type === "salary" && (
-                            <div className="text-[10px] text-muted-foreground font-normal">
-                              {col.salaryType === "advance" ? "Аванс" : "ЗП"}
-                            </div>
-                          )}
+                          {weekLabel(w)}
                         </TableHead>
                       ))}
                     </TableRow>
@@ -727,7 +666,7 @@ export default function Finance() {
                               {formatCurrency(summary.saldoBalance)}
                             </TableCell>
                           )}
-                          {columns.map((col, ci) => renderDateCell(project.id, col, ci))}
+                          {weeks.map((w, wi) => renderDateCell(project.id, wi, w))}
                         </TableRow>
                       );
                     })}
@@ -740,7 +679,7 @@ export default function Finance() {
                         <>
                           <TableRow>
                             <TableCell
-                              colSpan={1 + visibleCount + columns.length}
+                              colSpan={1 + visibleCount + weeks.length}
                               className="sticky left-0 z-10 bg-muted/70 font-semibold text-muted-foreground py-2 text-sm border-t-2 border-border"
                             >
                               Вне проекта
@@ -768,19 +707,11 @@ export default function Finance() {
                                 {visibleColumns.fot && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
                                 {visibleColumns.totalExpenses && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
                                 {visibleColumns.saldoBalance && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {columns.map((col, ci) => {
-                                  if (col.type === "salary") {
-                                    return (
-                                      <TableCell key={ci} className="p-1 border-l border-border bg-primary/5">
-                                        <div className="h-[28px] min-w-[70px]" />
-                                      </TableCell>
-                                    );
-                                  }
-                                  const wi = col.weekIndex;
+                                {weeks.map((w, wi) => {
                                   const entries = (payments["__no_project__"]?.[wi] || []).filter(e => e.taskId === task.id);
                                   const cellTotal = entries.reduce((s, e) => s + e.amount, 0);
                                   return (
-                                    <TableCell key={ci} className="p-1 border-l border-border transition-colors" onClick={() => !isReadOnly && openPaymentDialog("__no_project__", wi)}>
+                                    <TableCell key={wi} className="p-1 border-l border-border transition-colors" onClick={() => !isReadOnly && openPaymentDialog("__no_project__", wi)}>
                                       {cellTotal > 0 ? (
                                         <Tooltip>
                                           <TooltipTrigger asChild>
@@ -846,26 +777,11 @@ export default function Finance() {
                           {visibleColumns.saldoBalance && (
                             <TableCell className={`text-center tabular-nums font-bold border-l border-border ${getSummaryColor(totalSaldoBalance, "balance")}`}>{formatCurrency(totalSaldoBalance)}</TableCell>
                           )}
-                          {columns.map((col, ci) => {
-                            if (col.type === "salary") {
-                              const salaryTotal = getSalaryPaidOnDate(col.date);
-                              return (
-                                <TableCell key={ci} className="p-1 border-l border-border bg-primary/5">
-                                  {salaryTotal > 0 ? (
-                                    <div className="h-[28px] min-w-[70px] flex items-center justify-center text-[10px] tabular-nums text-destructive font-semibold">
-                                      −{formatCurrency(salaryTotal)}
-                                    </div>
-                                  ) : (
-                                    <div className="h-[28px] min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
-                                  )}
-                                </TableCell>
-                              );
-                            }
-                            const wi = col.weekIndex;
+                          {weeks.map((w, wi) => {
                             const weekPaid = activeProjects.reduce((s, p) => s + getCellTotal(p.id, wi), 0) + getCellTotal("__no_project__", wi);
                             const weekIncome = activeProjects.reduce((s, p) => s + getIncomeCellTotal(p.id, wi), 0);
                             return (
-                              <TableCell key={ci} className="p-1 border-l border-border">
+                              <TableCell key={wi} className="p-1 border-l border-border">
                                 {(weekPaid > 0 || weekIncome > 0) ? (
                                   <div className="h-auto min-h-[28px] min-w-[70px] flex flex-col items-center justify-center text-[10px] tabular-nums gap-0.5">
                                     {weekIncome > 0 && <span className="text-green-600 dark:text-green-400">+{formatCurrency(weekIncome)}</span>}
@@ -887,7 +803,7 @@ export default function Finance() {
           </TabsContent>
 
           <TabsContent value="payments" className="mt-0">
-            <SalaryPaymentsTab onPayrollProcessed={() => setSalaryRefresh((v) => v + 1)} />
+            <SalaryPaymentsTab onPayrollProcessed={() => {}} />
           </TabsContent>
 
           <TabsContent value="salary" className="mt-0">
