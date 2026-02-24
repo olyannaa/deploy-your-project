@@ -358,7 +358,9 @@ export default function Finance() {
   const [dialogMode, setDialogMode] = useState<"payment" | "income">("payment");
   const [editCell, setEditCell] = useState<{ projectId: string; weekIndex: number } | null>(null);
   const [dialogAmount, setDialogAmount] = useState("");
+  const [dialogAmountFromTask, setDialogAmountFromTask] = useState(false);
   const [dialogTaskId, setDialogTaskId] = useState<string>("");
+  const [dialogLockedTask, setDialogLockedTask] = useState(false);
   const [dialogNote, setDialogNote] = useState("");
   const [employeeAmounts, setEmployeeAmounts] = useState<Record<string, string>>({});
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
@@ -440,10 +442,20 @@ export default function Finance() {
     return actual <= 0;
   };
 
-  const openPaymentDialog = (projectId: string, weekIndex: number) => {
+  const openPaymentDialog = (projectId: string, weekIndex: number, lockedTask?: any) => {
     setEditCell({ projectId, weekIndex });
     setDialogMode("payment");
-    setDialogAmount(""); setDialogTaskId(""); setDialogNote(""); setEmployeeAmounts({});
+    setDialogNote(""); setEmployeeAmounts({});
+    if (lockedTask) {
+      setDialogTaskId(lockedTask.id);
+      setDialogLockedTask(true);
+      // Pre-fill amount from task budget/amount if available
+      const taskAmount = lockedTask.amount || lockedTask.budget || 0;
+      setDialogAmount(taskAmount > 0 ? String(taskAmount) : "");
+      setDialogAmountFromTask(taskAmount > 0);
+    } else {
+      setDialogTaskId(""); setDialogAmount(""); setDialogLockedTask(false); setDialogAmountFromTask(false);
+    }
     setDialogOpen(true);
   };
   const openIncomeDialog = (projectId: string, weekIndex: number) => {
@@ -889,8 +901,8 @@ export default function Finance() {
                                 const entries = (payments["__no_project__"]?.[wi] || []).filter(e => e.taskId === task.id);
                                 const cellTotal = entries.reduce((s, e) => s + e.amount, 0);
                                 return (
-                                  <TableCell key={ci} className="p-1 border-l border-border transition-colors"
-                                    onClick={() => !isReadOnly && openPaymentDialog("__no_project__", wi)}>
+                                  <TableCell key={ci} className="p-1 border-l border-border transition-colors cursor-pointer"
+                                    onClick={() => !isReadOnly && openPaymentDialog("__no_project__", wi, task)}>
                                     {cellTotal > 0 ? (
                                       <Tooltip>
                                         <TooltipTrigger asChild>
@@ -1029,15 +1041,21 @@ export default function Finance() {
               {dialogMode === "payment" && (
                 <div className="space-y-2">
                   <Label>Задача *</Label>
-                  <Select value={dialogTaskId} onValueChange={(v) => { setDialogTaskId(v); setEmployeeAmounts({}); }}>
-                    <SelectTrigger><SelectValue placeholder="Выберите задачу" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— Не выбрана —</SelectItem>
-                      {editCell && getProjectAccountantTasks(editCell.projectId).map((task: any) => (
-                        <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {dialogLockedTask ? (
+                    <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm font-medium">
+                      {getSelectedTask()?.title || dialogTaskId}
+                    </div>
+                  ) : (
+                    <Select value={dialogTaskId} onValueChange={(v) => { setDialogTaskId(v); setEmployeeAmounts({}); }}>
+                      <SelectTrigger><SelectValue placeholder="Выберите задачу" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— Не выбрана —</SelectItem>
+                        {editCell && getProjectAccountantTasks(editCell.projectId).map((task: any) => (
+                          <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               )}
               {dialogMode === "payment" && dialogTaskId && dialogTaskId !== "none" && (() => {
@@ -1077,8 +1095,15 @@ export default function Finance() {
               {(dialogMode === "income" || !hasEmployees) && (
                 <div className="space-y-2">
                   <Label htmlFor="payment-amount">{dialogMode === "income" ? "Сумма прихода *" : "Сумма выплаты *"}</Label>
-                  <Input id="payment-amount" type="number" placeholder="Введите сумму" value={dialogAmount}
-                    onChange={(e) => setDialogAmount(e.target.value)} autoFocus />
+                  <Input
+                    id="payment-amount"
+                    type="number"
+                    placeholder="Введите сумму"
+                    value={dialogAmount}
+                    onChange={(e) => { setDialogAmount(e.target.value); setDialogAmountFromTask(false); }}
+                    className={dialogAmountFromTask ? "italic" : ""}
+                    autoFocus
+                  />
                 </div>
               )}
             </div>
