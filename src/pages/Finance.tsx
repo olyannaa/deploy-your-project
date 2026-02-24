@@ -659,8 +659,7 @@ export default function Finance() {
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-[280px] text-left">
-                            <p className="font-semibold text-sm mb-1">{col.tooltip}</p>
-                            <p className="text-xs text-muted-foreground">{col.calculation}</p>
+                            <p className="text-sm">{col.tooltip}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TableHead>

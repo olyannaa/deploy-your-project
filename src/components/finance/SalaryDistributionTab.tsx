@@ -19,6 +19,7 @@ import {
 import { Search } from "lucide-react";
 import { mockEmployees, mockDepartments } from "@/data/mockData";
 import { demoMonthlyTime, projectNames } from "@/data/salaryStore";
+import { TimeTrackingDialog } from "@/components/TimeTrackingDialog";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -49,6 +50,8 @@ export default function SalaryDistributionTab() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [selectedEmployee, setSelectedEmployee] = useState<{ id: string; name: string; dailyRate?: number; contractRate?: number } | null>(null);
+  const [isTimeDialogOpen, setIsTimeDialogOpen] = useState(false);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
 
@@ -123,6 +126,11 @@ export default function SalaryDistributionTab() {
   const grandTotal = filtered.reduce((s, e) => s + e.totalAccrued, 0);
   const grandDays = filtered.reduce((s, e) => s + e.totalDays, 0);
 
+  const handleEmployeeClick = (emp: { id: string; name: string; dailyRate: number; contractRate?: number }) => {
+    setSelectedEmployee(emp);
+    setIsTimeDialogOpen(true);
+  };
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -191,7 +199,15 @@ export default function SalaryDistributionTab() {
             {filtered.map((emp) => (
               <>
                 <TableRow key={emp.id} className="bg-muted/30 font-semibold border-t-2 border-border">
-                  <TableCell>{emp.name}</TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="text-left text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-semibold"
+                      onClick={() => handleEmployeeClick(emp)}
+                    >
+                      {emp.name}
+                    </button>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{emp.departmentName}</TableCell>
                   <TableCell className="text-center">
                     <Badge variant={emp.isContract ? "secondary" : "outline"} className="text-xs">
@@ -279,6 +295,18 @@ export default function SalaryDistributionTab() {
           </Table>
         </div>
       </div>
+
+      {/* Time tracking dialog */}
+      {selectedEmployee && (
+        <TimeTrackingDialog
+          open={isTimeDialogOpen}
+          onOpenChange={setIsTimeDialogOpen}
+          employeeId={selectedEmployee.id}
+          employeeName={selectedEmployee.name}
+          hourlyRate={selectedEmployee.dailyRate}
+          contractRate={selectedEmployee.contractRate}
+        />
+      )}
     </div>
   );
 }
