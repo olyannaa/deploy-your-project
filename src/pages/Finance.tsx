@@ -563,63 +563,66 @@ export default function Finance() {
                           const incEntries = incomes[project.id]?.[wi] || [];
                           const cellExpense = getCellTotal(project.id, wi);
                           const cellIncome = getIncomeCellTotal(project.id, wi);
-                          const hasData = cellExpense > 0 || cellIncome > 0;
                           return (
-                            <TableCell
-                              key={ci}
-                              className="p-1 border-l border-border transition-colors cursor-pointer"
-                              onClick={() => {
-                                if (isReadOnly) return;
-                                openPaymentDialog(project.id, wi);
-                              }}
-                              onContextMenu={(e) => {
-                                if (isReadOnly) return;
-                                e.preventDefault();
-                                openIncomeDialog(project.id, wi);
-                              }}
-                            >
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="min-w-[70px] flex flex-col items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border gap-0.5 py-0.5">
-                                    <span className={cellExpense > 0 ? "text-destructive" : "text-muted-foreground"}>
-                                      {cellExpense > 0 ? `−${fmtNum(cellExpense)}` : "—"}
-                                    </span>
-                                    <span className={cellIncome > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
-                                      {cellIncome > 0 ? `+${fmtNum(cellIncome)}` : "—"}
-                                    </span>
-                                  </div>
-                                </TooltipTrigger>
-                                {hasData && (
-                                  <TooltipContent side="top" className="max-w-[300px]">
-                                    {incEntries.length > 0 && (
-                                      <>
-                                        <p className="font-semibold text-xs mb-1 text-green-600">Приходы:</p>
-                                        <div className="space-y-1 mb-2">
-                                          {incEntries.map((e, idx) => (
-                                            <div key={idx} className="flex justify-between gap-4 text-xs">
-                                              <span className="truncate">{e.taskTitle || "Приход"}</span>
-                                              <span className="font-medium whitespace-nowrap">{formatCurrency(e.amount)}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </>
-                                    )}
-                                    {expEntries.length > 0 && (
-                                      <>
-                                        <p className="font-semibold text-xs mb-1 text-destructive">Расходы:</p>
-                                        <div className="space-y-1">
-                                          {expEntries.map((e, idx) => (
-                                            <div key={idx} className="flex justify-between gap-4 text-xs">
-                                              <span className="truncate">{e.reason ? reasonLabels[e.reason] || e.reason : ""} {e.taskTitle || ""}</span>
-                                              <span className="font-medium whitespace-nowrap">{formatCurrency(e.amount)}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </>
-                                    )}
-                                  </TooltipContent>
-                                )}
-                              </Tooltip>
+                            <TableCell key={ci} className="p-0 border-l border-border">
+                              <div className="min-w-[70px] flex flex-col text-xs tabular-nums divide-y divide-border">
+                                {/* Top sub-cell: Expense */}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="w-full px-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-default"
+                                      disabled={isReadOnly}
+                                      onClick={() => !isReadOnly && openPaymentDialog(project.id, wi)}
+                                    >
+                                      <span className={cellExpense > 0 ? "text-destructive" : "text-muted-foreground"}>
+                                        {cellExpense > 0 ? `−${fmtNum(cellExpense)}` : "—"}
+                                      </span>
+                                    </button>
+                                  </TooltipTrigger>
+                                  {expEntries.length > 0 && (
+                                    <TooltipContent side="top" className="max-w-[300px]">
+                                      <p className="font-semibold text-xs mb-1 text-destructive">Расходы:</p>
+                                      <div className="space-y-1">
+                                        {expEntries.map((e, idx) => (
+                                          <div key={idx} className="flex justify-between gap-4 text-xs">
+                                            <span className="truncate">{e.reason ? reasonLabels[e.reason] || e.reason : ""} {e.taskTitle || ""}</span>
+                                            <span className="font-medium whitespace-nowrap">{formatCurrency(e.amount)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                                {/* Bottom sub-cell: Income */}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="w-full px-1 py-1 flex items-center justify-center hover:bg-muted/50 transition-colors cursor-pointer disabled:cursor-default"
+                                      disabled={isReadOnly}
+                                      onClick={() => !isReadOnly && openIncomeDialog(project.id, wi)}
+                                    >
+                                      <span className={cellIncome > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}>
+                                        {cellIncome > 0 ? `+${fmtNum(cellIncome)}` : "—"}
+                                      </span>
+                                    </button>
+                                  </TooltipTrigger>
+                                  {incEntries.length > 0 && (
+                                    <TooltipContent side="top" className="max-w-[300px]">
+                                      <p className="font-semibold text-xs mb-1 text-green-600">Приходы:</p>
+                                      <div className="space-y-1">
+                                        {incEntries.map((e, idx) => (
+                                          <div key={idx} className="flex justify-between gap-4 text-xs">
+                                            <span className="truncate">{e.taskTitle || "Приход"}</span>
+                                            <span className="font-medium whitespace-nowrap">{formatCurrency(e.amount)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                              </div>
                             </TableCell>
                           );
                         })}
