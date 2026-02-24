@@ -145,27 +145,6 @@ export function setGlobalPayrolls(p: SalaryPayroll[]) {
   globalPayrolls = p;
 }
 
-/** Get ФОТ (salary fund) for a specific project across all available months */
-export function getProjectFOT(projectId: string): number {
-  let total = 0;
-  for (const emp of mockEmployees) {
-    if (emp.roles.includes("accountant")) continue;
-    const isContract = !!emp.contractRate;
-    const timeData = demoMonthlyTime[emp.id];
-    if (!timeData) continue;
-    for (const [, projects] of Object.entries(timeData)) {
-      const days = projects[projectId];
-      if (days === undefined || days <= 0) continue;
-      if (isContract) {
-        total += emp.contractRate || 0;
-      } else {
-        total += days * (emp.dailyRate || 0);
-      }
-    }
-  }
-  return total;
-}
-
 /** Get total salary paid on a specific date (YYYY-MM-DD) */
 export function getSalaryPaidOnDate(date: string): number {
   return globalPayrolls

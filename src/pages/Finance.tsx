@@ -8,28 +8,41 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover";
 import { differenceInDays, parseISO, startOfWeek, addWeeks, format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Plus, SlidersHorizontal, AlertTriangle } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreateTaskDialog from "@/components/tasks/CreateTaskDialog";
 import SalaryDistributionTab from "@/components/finance/SalaryDistributionTab";
 import SalaryPaymentsTab from "@/components/finance/SalaryPaymentsTab";
-import { getProjectFOT } from "@/data/salaryStore";
+import { getSalaryPaidOnDate, getSalaryDatesForHalfYear } from "@/data/salaryStore";
 
 interface Project {
   id: string;
@@ -47,14 +60,16 @@ export interface PaymentEntry {
   employeePayments?: { id: string; name: string; amount: number }[];
 }
 
-// Generate weeks for the current half-year
+// Generate weeks for the current half-year (Jan-Jun or Jul-Dec)
 export function generateWeeks(_projects?: { startDate: string; endDate: string }[]): Date[] {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const halfStart = month < 6 ? new Date(year, 0, 1) : new Date(year, 6, 1);
   const halfEnd = month < 6 ? new Date(year, 5, 30) : new Date(year, 11, 31);
+
   const minDate = startOfWeek(halfStart, { weekStartsOn: 1 });
+
   const weeks: Date[] = [];
   let current = minDate;
   while (current <= halfEnd) {
@@ -82,23 +97,49 @@ export function weekLabel(date: Date): string {
   return format(date, "dd.MM");
 }
 
-// Shared payments store
+// Shared payments store — arrays per cell for multiple payments
+// Seed with demo data so the table is not empty
 function buildInitialPayments(): Record<string, Record<number, PaymentEntry[]>> {
   return {
     "proj-1": {
-      4: [{ amount: 850000, taskId: "acc-2", taskTitle: "Оплата субподрядчику СтройМонтаж", reason: "subcontract" }],
-      5: [{ amount: 45000, taskId: "acc-3", taskTitle: "Доп. расходы: командировка на площадку", reason: "additional" }],
-      7: [{ amount: 320000, taskId: "acc-5", taskTitle: "Оплата ИП Кузнецов — изыскания", reason: "subcontract" }],
+      4: [
+        { amount: 850000, taskId: "acc-2", taskTitle: "Оплата субподрядчику СтройМонтаж", reason: "subcontract" },
+      ],
+      5: [
+        { amount: 45000, taskId: "acc-3", taskTitle: "Доп. расходы: командировка на площадку", reason: "additional" },
+      ],
+      7: [
+        { amount: 320000, taskId: "acc-5", taskTitle: "Оплата ИП Кузнецов — изыскания", reason: "subcontract" },
+      ],
     },
     "proj-2": {
-      1: [{ amount: 200000, taskId: "acc-8", taskTitle: "Оформление КС-2/КС-3 — «Парковый»", reason: "subcontract" }],
-      6: [{ amount: 95000, reason: "additional", taskTitle: "Расходы на экспертизу — «Парковый»" }],
+      1: [
+        { amount: 200000, taskId: "acc-8", taskTitle: "Оформление КС-2/КС-3 — «Парковый»", reason: "subcontract" },
+      ],
+      6: [
+        { amount: 95000, reason: "additional", taskTitle: "Расходы на экспертизу — «Парковый»" },
+      ],
     },
     "proj-3": {
-      3: [{ amount: 600000, reason: "subcontract", taskTitle: "Аванс ГеоИзыскания — «Восток»" }],
+      3: [
+        { amount: 600000, reason: "subcontract", taskTitle: "Аванс ГеоИзыскания — «Восток»" },
+      ],
     },
     "proj-4": {
-      1: [{ amount: 350000, reason: "subcontract", taskTitle: "Остаток субподряд — Школа" }],
+      1: [
+        { amount: 350000, reason: "subcontract", taskTitle: "Остаток субподряд — Школа" },
+      ],
+    },
+    "__no_project__": {
+      2: [
+        { amount: 250000, taskId: "acc-1", taskTitle: "Выплата ЗП за март", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }] },
+      ],
+      4: [
+        { amount: 385000, taskId: "acc-7", taskTitle: "Выплата ЗП (общая) за май", reason: "salary", employeePayments: [{ id: "user-1", name: "Иванов И.И.", amount: 75000 }, { id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-4", name: "Козлов В.М.", amount: 55000 }, { id: "user-6", name: "Волков Д.К.", amount: 30000 }, { id: "user-7", name: "Лебедева О.Н.", amount: 48000 }, { id: "user-8", name: "Новиков С.В.", amount: 57000 }] },
+      ],
+      5: [
+        { amount: 180000, taskId: "acc-4", taskTitle: "Выплата аванса за апрель", reason: "salary", employeePayments: [{ id: "user-2", name: "Петров П.П.", amount: 67500 }, { id: "user-3", name: "Сидорова А.С.", amount: 52500 }, { id: "user-6", name: "Волков Д.К.", amount: 60000 }] },
+      ],
     },
   };
 }
@@ -126,6 +167,7 @@ let globalPayments: Record<string, Record<number, PaymentEntry[]>> = buildInitia
 export function getGlobalPayments() { return globalPayments; }
 export function setGlobalPayments(p: Record<string, Record<number, PaymentEntry[]>>) { globalPayments = p; }
 
+// Shared income store — arrays per cell
 let globalIncomes: Record<string, Record<number, PaymentEntry[]>> = buildInitialIncomes();
 export function getGlobalIncomes() { return globalIncomes; }
 export function setGlobalIncomes(p: Record<string, Record<number, PaymentEntry[]>>) { globalIncomes = p; }
@@ -143,7 +185,10 @@ export function getProjectIncomeTotal(projectId: string): number {
 export function getProjectSubcontractorPaid(projectId: string, _subcontractorId: string): number {
   const p = globalPayments[projectId];
   if (!p) return 0;
-  return Object.values(p).flat().filter((v) => v.reason === "subcontract").reduce((sum, v) => sum + v.amount, 0);
+  return Object.values(p)
+    .flat()
+    .filter((v) => v.reason === "subcontract")
+    .reduce((sum, v) => sum + v.amount, 0);
 }
 
 const reasonLabels: Record<string, string> = {
@@ -153,18 +198,6 @@ const reasonLabels: Record<string, string> = {
   other: "Другое",
 };
 
-const SUMMARY_COLUMNS = [
-  { key: "budget", label: "Сумма по договору" },
-  { key: "income", label: "Поступления" },
-  { key: "saldoIncome", label: "Сальдо (Остаток к поступлению)" },
-  { key: "opex", label: "Операционные расходы" },
-  { key: "fot", label: "ФОТ" },
-  { key: "totalExpenses", label: "Общие расходы" },
-  { key: "saldoBalance", label: "Сальдо (Между поступлениями и расходами)" },
-] as const;
-
-type ColumnVisibility = Record<typeof SUMMARY_COLUMNS[number]["key"], boolean>;
-
 export default function Finance() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -172,19 +205,21 @@ export default function Finance() {
   const isAccountant = user?.roles?.includes("accountant");
   const isAdminOrGip = user?.roles?.some((r: string) => ["admin", "gip"].includes(r));
   const isReadOnly = !isAccountant;
-
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ["projects"],
     queryFn: () => apiFetch("/projects"),
   });
+
   const { data: allTasks = [] } = useQuery<any[]>({
     queryKey: ["tasks"],
     queryFn: () => apiFetch("/tasks"),
   });
+
   const { data: allEmployees = [] } = useQuery<any[]>({
     queryKey: ["users", "all"],
     queryFn: () => apiFetch("/users"),
   });
+
   const { data: allSubcontractors = [] } = useQuery<any[]>({
     queryKey: ["all-subcontractors"],
     queryFn: async () => {
@@ -204,8 +239,46 @@ export default function Finance() {
   );
 
   const weeks = useMemo(() => generateWeeks(activeProjects), [activeProjects]);
-
   const monthGroups = useMemo(() => groupByMonth(weeks), [weeks]);
+  const salaryDates = useMemo(() => getSalaryDatesForHalfYear(), []);
+  const [salaryRefresh, setSalaryRefresh] = useState(0);
+
+  // Build unified column list: weeks + salary dates, sorted chronologically
+  const columns = useMemo(() => {
+    const cols: { type: "week"; weekIndex: number; date: Date; label: string }[] | { type: "salary"; date: string; label: string; salaryType: "salary" | "advance" }[] = [];
+    const allCols: Array<
+      | { type: "week"; weekIndex: number; date: Date; label: string; sortKey: number }
+      | { type: "salary"; date: string; label: string; salaryType: "salary" | "advance"; sortKey: number }
+    > = [];
+
+    weeks.forEach((w, i) => {
+      allCols.push({ type: "week", weekIndex: i, date: w, label: weekLabel(w), sortKey: w.getTime() });
+    });
+
+    salaryDates.forEach((sd) => {
+      const d = new Date(sd.date);
+      allCols.push({ type: "salary", date: sd.date, label: sd.label, salaryType: sd.type, sortKey: d.getTime() });
+    });
+
+    allCols.sort((a, b) => a.sortKey - b.sortKey);
+    return allCols;
+  }, [weeks, salaryDates]);
+
+  // Group columns by month for header
+  const columnMonthGroups = useMemo(() => {
+    const groups: { label: string; count: number }[] = [];
+    for (const col of columns) {
+      const d = col.type === "week" ? col.date : new Date(col.date);
+      const label = format(d, "LLLL yyyy", { locale: ru });
+      const last = groups[groups.length - 1];
+      if (last && last.label === label) {
+        last.count++;
+      } else {
+        groups.push({ label, count: 1 });
+      }
+    }
+    return groups;
+  }, [columns]);
 
   const [payments, setPayments] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalPayments);
   const [incomes, setIncomes] = useState<Record<string, Record<number, PaymentEntry[]>>>(globalIncomes);
@@ -217,19 +290,6 @@ export default function Finance() {
   const updateIncomes = (next: Record<string, Record<number, PaymentEntry[]>>) => {
     setIncomes(next);
     setGlobalIncomes(next);
-  };
-
-  // New state
-  const [viewMode, setViewMode] = useState<"fact" | "plan">("fact");
-  const [visibleColumns, setVisibleColumns] = useState<ColumnVisibility>({
-    budget: true, income: true, saldoIncome: true,
-    opex: true, fot: true, totalExpenses: true, saldoBalance: true,
-  });
-
-  const visibleCount = Object.values(visibleColumns).filter(Boolean).length;
-
-  const toggleColumn = (key: string) => {
-    setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key as keyof ColumnVisibility] }));
   };
 
   // Dialog state
@@ -267,6 +327,7 @@ export default function Finance() {
     return allTasks.find((t: any) => t.id === dialogTaskId);
   };
 
+  // Resolve employee list from selected task
   const getTaskEmployeeList = (task: any): { id: string; name: string; rate?: number }[] => {
     if (!task?.selectedEmployeeIds?.length) return [];
     const subtype = task.accountingSubtype;
@@ -294,6 +355,7 @@ export default function Finance() {
 
   const saveEntry = () => {
     if (!editCell) return;
+
     if (dialogMode === "income") {
       const amount = parseFloat(dialogAmount) || 0;
       if (amount <= 0) return;
@@ -304,24 +366,46 @@ export default function Finance() {
         reason: "income",
       };
       const existing = incomes[editCell.projectId]?.[editCell.weekIndex] || [];
-      const next = { ...incomes, [editCell.projectId]: { ...incomes[editCell.projectId], [editCell.weekIndex]: [...existing, entry] } };
+      const next = {
+        ...incomes,
+        [editCell.projectId]: {
+          ...incomes[editCell.projectId],
+          [editCell.weekIndex]: [...existing, entry],
+        },
+      };
       updateIncomes(next);
     } else {
       if (!dialogTaskId || dialogTaskId === "none") return;
       const task = getSelectedTask();
       let totalAmount: number;
       let empPayments: { id: string; name: string; amount: number }[] | undefined;
+
       if (hasEmployees) {
-        empPayments = dialogTaskEmployees.map((e) => ({ id: e.id, name: e.name, amount: parseFloat(employeeAmounts[e.id] || "") || 0 })).filter((e) => e.amount > 0);
+        empPayments = dialogTaskEmployees
+          .map((e) => ({ id: e.id, name: e.name, amount: parseFloat(employeeAmounts[e.id] || "") || 0 }))
+          .filter((e) => e.amount > 0);
         totalAmount = empPayments.reduce((s, e) => s + e.amount, 0);
         if (totalAmount <= 0) return;
       } else {
         totalAmount = parseFloat(dialogAmount) || 0;
         if (totalAmount <= 0) return;
       }
-      const entry: PaymentEntry = { amount: totalAmount, taskId: dialogTaskId, taskTitle: task?.title || "", reason: task?.accountingSubtype || undefined, employeePayments: empPayments };
+
+      const entry: PaymentEntry = {
+        amount: totalAmount,
+        taskId: dialogTaskId,
+        taskTitle: task?.title || "",
+        reason: task?.accountingSubtype || undefined,
+        employeePayments: empPayments,
+      };
       const existing = payments[editCell.projectId]?.[editCell.weekIndex] || [];
-      const next = { ...payments, [editCell.projectId]: { ...payments[editCell.projectId], [editCell.weekIndex]: [...existing, entry] } };
+      const next = {
+        ...payments,
+        [editCell.projectId]: {
+          ...payments[editCell.projectId],
+          [editCell.weekIndex]: [...existing, entry],
+        },
+      };
       updatePayments(next);
     }
     setDialogOpen(false);
@@ -354,13 +438,19 @@ export default function Finance() {
 
   const getProjectAccountantTasks = (projectId: string) => {
     if (projectId === "__no_project__") {
-      return allTasks.filter((t: any) => t.taskType === "accounting" && !t.projectId);
+      return allTasks.filter(
+        (t: any) => t.taskType === "accounting" && !t.projectId,
+      );
     }
-    return allTasks.filter((t: any) => t.projectId === projectId && t.taskType === "accounting");
+    return allTasks.filter(
+      (t: any) => t.projectId === projectId && t.taskType === "accounting",
+    );
   };
 
+  const today = new Date();
+
   const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
+    new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value);
 
   const handleProjectClick = (projectId: string) => {
     navigate(`/projects/${projectId}?tab=finance`);
@@ -371,96 +461,6 @@ export default function Finance() {
     setIsCreateTaskOpen(true);
   };
 
-  // Compute summary values for a project
-  const getProjectSummary = (project: Project) => {
-    const income = getTotalIncome(project.id);
-    const opex = getTotalPaid(project.id); // All project payments are operational
-    const fot = getProjectFOT(project.id);
-    const totalExpenses = opex + fot;
-    const saldoIncome = project.budget - income;
-    const saldoBalance = income - totalExpenses;
-    return { income, opex, fot, totalExpenses, saldoIncome, saldoBalance };
-  };
-
-  // Render a date cell with both income and expenses
-  const renderDateCell = (projectId: string, weekIndex: number, weekDate: Date) => {
-    const expEntries = payments[projectId]?.[weekIndex] || [];
-    const incEntries = incomes[projectId]?.[weekIndex] || [];
-    const cellExpense = expEntries.reduce((s, e) => s + e.amount, 0);
-    const cellIncome = incEntries.reduce((s, e) => s + e.amount, 0);
-    const hasData = cellExpense > 0 || cellIncome > 0;
-    const hasExpenseNoIncome = cellExpense > 0 && cellIncome === 0;
-
-    return (
-      <TableCell
-        key={weekIndex}
-        className="p-1 border-l border-border transition-colors cursor-pointer"
-        onClick={() => !isReadOnly && openPaymentDialog(projectId, weekIndex)}
-      >
-        {hasData ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="min-h-[28px] min-w-[70px] flex flex-col items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border gap-0.5">
-                {cellIncome > 0 && (
-                  <span className="text-green-600 dark:text-green-400">+{formatCurrency(cellIncome)}</span>
-                )}
-                {cellExpense > 0 && (
-                  <span className="text-destructive">−{formatCurrency(cellExpense)}</span>
-                )}
-                {hasExpenseNoIncome && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
-                    <AlertTriangle className="h-3 w-3" />
-                    нет прихода
-                  </span>
-                )}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[300px]">
-              {incEntries.length > 0 && (
-                <>
-                  <p className="font-semibold text-xs mb-1">Приходы:</p>
-                  <div className="space-y-1 mb-2">
-                    {incEntries.map((e, idx) => (
-                      <div key={idx} className="flex justify-between gap-4 text-xs">
-                        <span className="truncate">{e.taskTitle || "Приход"}</span>
-                        <span className="font-medium whitespace-nowrap text-green-600">+{formatCurrency(e.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-              {expEntries.length > 0 && (
-                <>
-                  <p className="font-semibold text-xs mb-1">Расходы:</p>
-                  <div className="space-y-1">
-                    {expEntries.map((e, idx) => (
-                      <div key={idx} className="flex justify-between gap-4 text-xs">
-                        <span className="truncate">{e.reason ? reasonLabels[e.reason] || e.reason : ""} {e.taskTitle || ""}</span>
-                        <span className="font-medium whitespace-nowrap">−{formatCurrency(e.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <div className="h-[28px] min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
-            —
-          </div>
-        )}
-      </TableCell>
-    );
-  };
-
-  const getSummaryColor = (value: number, type: "saldo" | "balance") => {
-    if (type === "saldo") {
-      // Остаток к поступлению: green = received everything, red = still owed
-      return value > 0 ? "text-destructive" : "text-green-600 dark:text-green-400";
-    }
-    // Баланс: green = positive, red = negative
-    return value >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive";
-  };
 
   return (
     <TooltipProvider>
@@ -483,335 +483,404 @@ export default function Finance() {
           </TabsList>
 
           <TabsContent value="finance" className="mt-0">
-            {/* Controls: Факт/План + Столбцы */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="inline-flex rounded-lg border border-border overflow-hidden">
-                <button
-                  onClick={() => setViewMode("fact")}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                    viewMode === "fact"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Факт
-                </button>
-                <button
-                  onClick={() => setViewMode("plan")}
-                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                    viewMode === "plan"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-card text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  План
-                </button>
-              </div>
+        <div className="rounded-lg border border-border overflow-auto bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="sticky left-0 z-20 bg-muted min-w-[200px]" rowSpan={2}>
+                  Название проекта
+                </TableHead>
+                <TableHead className="text-center bg-muted min-w-[120px]" rowSpan={2}>
+                  Сумма по договору
+                </TableHead>
+                <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>
+                  Приходы
+                </TableHead>
+                <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>
+                  Оплачено
+                </TableHead>
+                <TableHead className="text-center bg-muted min-w-[100px]" rowSpan={2}>
+                  Остаток
+                </TableHead>
+                {columnMonthGroups.map((mg) => (
+                  <TableHead
+                    key={mg.label}
+                    className="text-center bg-muted border-l border-border capitalize"
+                    colSpan={mg.count}
+                  >
+                    {mg.label}
+                  </TableHead>
+                ))}
+              </TableRow>
+              <TableRow>
+                {columns.map((col, i) => (
+                  <TableHead
+                    key={i}
+                    className={`text-center text-xs min-w-[80px] border-l border-border ${
+                      col.type === "salary"
+                        ? "bg-accent/60 font-semibold"
+                        : "bg-muted"
+                    }`}
+                  >
+                    {col.label}
+                    {col.type === "salary" && (
+                      <div className="text-[10px] text-muted-foreground font-normal">
+                        {col.salaryType === "advance" ? "Аванс" : "ЗП"}
+                      </div>
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {activeProjects.map((project) => {
+                const paid = getTotalPaid(project.id);
+                const income = getTotalIncome(project.id);
+                const remaining = project.budget - paid;
+                const daysLeft = Math.max(0, differenceInDays(parseISO(project.endDate), today));
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <SlidersHorizontal className="h-4 w-4" />
-                    Столбцы {visibleCount}/{SUMMARY_COLUMNS.length}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[300px]" align="start">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground mb-3">Отображаемые столбцы</p>
-                    {SUMMARY_COLUMNS.map((col) => (
-                      <label key={col.key} className="flex items-center gap-2 cursor-pointer">
-                        <Checkbox
-                          checked={visibleColumns[col.key]}
-                          onCheckedChange={() => toggleColumn(col.key)}
-                        />
-                        <span className="text-sm">{col.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {viewMode === "plan" ? (
-              <div className="rounded-lg border border-border bg-card p-12 text-center text-muted-foreground">
-                <p className="text-lg font-medium mb-2">Плановые данные</p>
-                <p className="text-sm">Раздел в разработке. Здесь будет плановый бюджет по проектам.</p>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border overflow-auto bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="sticky left-0 z-20 bg-muted min-w-[220px]" rowSpan={2}>
-                        Название проекта
-                      </TableHead>
-                      {visibleColumns.budget && (
-                        <TableHead className="text-center bg-muted min-w-[120px] border-l border-border" rowSpan={2}>
-                          Сумма по<br />договору
-                        </TableHead>
-                      )}
-                      {visibleColumns.income && (
-                        <TableHead className="text-center bg-muted min-w-[110px] border-l border-border" rowSpan={2}>
-                          <span className="underline underline-offset-4 decoration-muted-foreground/40">Поступления</span>
-                        </TableHead>
-                      )}
-                      {visibleColumns.saldoIncome && (
-                        <TableHead className="text-center bg-muted min-w-[130px] border-l border-border" rowSpan={2}>
-                          <span className="font-bold">Сальдо</span><br />
-                          <span className="text-xs font-normal">(Остаток к поступлению)</span>
-                        </TableHead>
-                      )}
-                      {visibleColumns.opex && (
-                        <TableHead className="text-center bg-muted min-w-[130px] border-l border-border" rowSpan={2}>
-                          <span className="underline underline-offset-4 decoration-muted-foreground/40">Операционные<br />расходы</span>
-                        </TableHead>
-                      )}
-                      {visibleColumns.fot && (
-                        <TableHead className="text-center bg-muted min-w-[90px] border-l border-border" rowSpan={2}>
-                          <span className="underline underline-offset-4 decoration-muted-foreground/40">ФОТ</span>
-                        </TableHead>
-                      )}
-                      {visibleColumns.totalExpenses && (
-                        <TableHead className="text-center bg-muted min-w-[110px] border-l border-border" rowSpan={2}>
-                          <span className="underline underline-offset-4 decoration-muted-foreground/40">Общие<br />расходы</span>
-                        </TableHead>
-                      )}
-                      {visibleColumns.saldoBalance && (
-                        <TableHead className="text-center bg-muted min-w-[150px] border-l border-border" rowSpan={2}>
-                          <span className="font-bold">Сальдо</span><br />
-                          <span className="text-xs font-normal">(Между поступлениями<br />и расходами)</span>
-                        </TableHead>
-                      )}
-                      {monthGroups.map((mg) => (
-                        <TableHead
-                          key={mg.label}
-                          className="text-center bg-muted border-l border-border capitalize"
-                          colSpan={mg.weeks.length}
-                        >
-                          {mg.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                    <TableRow>
-                      {weeks.map((w, i) => (
-                        <TableHead
-                          key={i}
-                          className="text-center text-xs min-w-[80px] border-l border-border bg-muted"
-                        >
-                          {weekLabel(w)}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {/* Project rows - single row per project */}
-                    {activeProjects.map((project) => {
-                      const summary = getProjectSummary(project);
-
-                      return (
-                        <TableRow key={project.id}>
-                          <TableCell className="sticky left-0 z-10 bg-card font-medium">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleProjectClick(project.id)}
-                                className="text-primary hover:underline text-left"
-                              >
-                                {project.name}
-                              </button>
-                              {(isAdminOrGip || isAccountant) && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0"
-                                  title="Создать задачу бухгалтеру"
-                                  onClick={(e) => { e.stopPropagation(); handleCreateTaskForProject(project.id); }}
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                          {visibleColumns.budget && (
-                            <TableCell className="text-center tabular-nums border-l border-border">
-                              {formatCurrency(project.budget)}
-                            </TableCell>
-                          )}
-                          {visibleColumns.income && (
-                            <TableCell className="text-center tabular-nums border-l border-border text-green-600 dark:text-green-400">
-                              {formatCurrency(summary.income)}
-                            </TableCell>
-                          )}
-                          {visibleColumns.saldoIncome && (
-                            <TableCell className={`text-center tabular-nums font-bold border-l border-border ${getSummaryColor(summary.saldoIncome, "saldo")}`}>
-                              {formatCurrency(summary.saldoIncome)}
-                            </TableCell>
-                          )}
-                          {visibleColumns.opex && (
-                            <TableCell className="text-center tabular-nums border-l border-border">
-                              {formatCurrency(summary.opex)}
-                            </TableCell>
-                          )}
-                          {visibleColumns.fot && (
-                            <TableCell className="text-center tabular-nums border-l border-border">
-                              {formatCurrency(summary.fot)}
-                            </TableCell>
-                          )}
-                          {visibleColumns.totalExpenses && (
-                            <TableCell className="text-center tabular-nums border-l border-border">
-                              {formatCurrency(summary.totalExpenses)}
-                            </TableCell>
-                          )}
-                          {visibleColumns.saldoBalance && (
-                            <TableCell className={`text-center tabular-nums font-bold border-l border-border ${getSummaryColor(summary.saldoBalance, "balance")}`}>
-                              {formatCurrency(summary.saldoBalance)}
-                            </TableCell>
-                          )}
-                          {weeks.map((w, wi) => renderDateCell(project.id, wi, w))}
-                        </TableRow>
-                      );
-                    })}
-
-                    {/* Non-project tasks */}
-                    {(() => {
-                      const nonProjectTasks = allTasks.filter((t: any) => t.taskType === "accounting" && !t.projectId);
-                      if (nonProjectTasks.length === 0) return null;
-                      return (
-                        <>
-                          <TableRow>
-                            <TableCell
-                              colSpan={1 + visibleCount + weeks.length}
-                              className="sticky left-0 z-10 bg-muted/70 font-semibold text-muted-foreground py-2 text-sm border-t-2 border-border"
+                return (
+                  <>
+                    {/* Payments row */}
+                    <TableRow key={project.id}>
+                      <TableCell className="sticky left-0 z-10 bg-card font-medium" rowSpan={2}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleProjectClick(project.id)}
+                            className="text-primary hover:underline text-left"
+                          >
+                            {project.name}
+                          </button>
+                          {(isAdminOrGip || isAccountant) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              title="Создать задачу бухгалтеру"
+                              onClick={(e) => { e.stopPropagation(); handleCreateTaskForProject(project.id); }}
                             >
-                              Вне проекта
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums" rowSpan={2}>
+                        {project.budget.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-green-600 dark:text-green-400" rowSpan={2}>
+                        {income.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-primary" rowSpan={2}>
+                        {paid.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      <TableCell className={`text-center tabular-nums ${
+                        project.budget > 0
+                          ? remaining / project.budget > 0.5
+                            ? "text-green-600 dark:text-green-400"
+                            : remaining / project.budget >= 0.1
+                              ? "text-yellow-600 dark:text-yellow-400"
+                              : "text-red-600 dark:text-red-400"
+                          : ""
+                      }`} rowSpan={2}>
+                        {remaining.toLocaleString("ru-RU")} ₽
+                      </TableCell>
+                      
+                      {columns.map((col, ci) => {
+                        if (col.type === "salary") {
+                          const salaryTotal = getSalaryPaidOnDate(col.date);
+                          return (
+                            <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                              {salaryTotal > 0 ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md text-destructive font-medium">
+                                      −{salaryTotal.toLocaleString("ru-RU")}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="text-xs">{col.salaryType === "advance" ? "Аванс" : "ЗП"} — проведено</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
+                              )}
                             </TableCell>
-                          </TableRow>
-                          {nonProjectTasks.map((task: any) => {
-                            const npPayments = payments["__no_project__"] || {};
-                            const taskPaid = Object.values(npPayments).reduce((sum, entries) =>
-                              sum + entries.filter(e => e.taskId === task.id).reduce((s, e) => s + e.amount, 0), 0);
-
-                            return (
-                              <TableRow key={task.id}>
-                                <TableCell className="sticky left-0 z-10 bg-card font-medium">
-                                  <span className="text-sm">{task.title}</span>
-                                  {task.accountingSubtype && (
-                                    <span className="text-xs text-muted-foreground ml-2">
-                                      ({reasonLabels[task.accountingSubtype] || task.accountingSubtype})
-                                    </span>
-                                  )}
-                                </TableCell>
-                                {visibleColumns.budget && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {visibleColumns.income && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {visibleColumns.saldoIncome && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {visibleColumns.opex && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {visibleColumns.fot && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {visibleColumns.totalExpenses && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {visibleColumns.saldoBalance && <TableCell className="text-center text-muted-foreground border-l border-border">—</TableCell>}
-                                {weeks.map((w, wi) => {
-                                  const entries = (payments["__no_project__"]?.[wi] || []).filter(e => e.taskId === task.id);
-                                  const cellTotal = entries.reduce((s, e) => s + e.amount, 0);
-                                  return (
-                                    <TableCell key={wi} className="p-1 border-l border-border transition-colors" onClick={() => !isReadOnly && openPaymentDialog("__no_project__", wi)}>
-                                      {cellTotal > 0 ? (
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <div className="h-[28px] min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-destructive">
-                                              −{formatCurrency(cellTotal)}
-                                            </div>
-                                          </TooltipTrigger>
-                                          <TooltipContent side="top" className="max-w-[300px]">
-                                            <div className="space-y-1">
-                                              {entries.map((e, idx) => (
-                                                <div key={idx} className="flex justify-between gap-4 text-xs">
-                                                  <span className="truncate">{e.reason ? reasonLabels[e.reason] || e.reason : ""} {e.taskTitle || ""}</span>
-                                                  <span className="font-medium whitespace-nowrap">−{formatCurrency(e.amount)}</span>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      ) : (
-                                        <div className="h-[28px] min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
-                                      )}
-                                    </TableCell>
-                                  );
-                                })}
-                              </TableRow>
-                            );
-                          })}
-                        </>
-                      );
-                    })()}
-
-                    {/* Итого row */}
-                    {(() => {
-                      const totalBudget = activeProjects.reduce((s, p) => s + p.budget, 0);
-                      const totalIncome = activeProjects.reduce((s, p) => s + getTotalIncome(p.id), 0);
-                      const totalOpex = activeProjects.reduce((s, p) => s + getTotalPaid(p.id), 0) + getTotalPaid("__no_project__");
-                      const totalFot = activeProjects.reduce((s, p) => s + getProjectFOT(p.id), 0);
-                      const totalExpAll = totalOpex + totalFot;
-                      const totalSaldoIncome = totalBudget - totalIncome;
-                      const totalSaldoBalance = totalIncome - totalExpAll;
+                          );
+                        }
+                        const wi = col.weekIndex;
+                        const entries = payments[project.id]?.[wi] || [];
+                        const cellTotal = getCellTotal(project.id, wi);
+                        return (
+                          <TableCell
+                            key={ci}
+                            className="p-1 border-l border-border transition-colors"
+                            onClick={() => !isReadOnly && openPaymentDialog(project.id, wi)}
+                          >
+                            {entries.length > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-destructive">
+                                    −{cellTotal.toLocaleString("ru-RU")}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[300px]">
+                                  <p className="font-semibold text-xs mb-1">Расходы:</p>
+                                  <div className="space-y-1">
+                                    {entries.map((e, idx) => (
+                                      <div key={idx} className="flex justify-between gap-4 text-xs">
+                                        <span className="truncate">
+                                          {e.reason ? reasonLabels[e.reason] || e.reason : ""}{" "}
+                                          {e.taskTitle || ""}
+                                        </span>
+                                        <span className="font-medium whitespace-nowrap">
+                                          {formatCurrency(e.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
+                                —
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                    {/* Income row */}
+                    <TableRow key={`${project.id}-income`} className="border-b-2 border-border">
+                      {columns.map((col, ci) => {
+                        if (col.type === "salary") {
+                          return (
+                            <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                              <div className="h-7 min-w-[70px]" />
+                            </TableCell>
+                          );
+                        }
+                        const wi = col.weekIndex;
+                        const entries = incomes[project.id]?.[wi] || [];
+                        const cellTotal = getIncomeCellTotal(project.id, wi);
+                        return (
+                          <TableCell
+                            key={ci}
+                            className="p-1 border-l border-border transition-colors"
+                            onClick={() => !isReadOnly && openIncomeDialog(project.id, wi)}
+                          >
+                            {entries.length > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-green-600 dark:text-green-400">
+                                    +{cellTotal.toLocaleString("ru-RU")}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-[300px]">
+                                  <p className="font-semibold text-xs mb-1">Приходы:</p>
+                                  <div className="space-y-1">
+                                    {entries.map((e, idx) => (
+                                      <div key={idx} className="flex justify-between gap-4 text-xs">
+                                        <span className="truncate">{e.taskTitle || "Приход"}</span>
+                                        <span className="font-medium whitespace-nowrap">
+                                          {formatCurrency(e.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
+                                —
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  </>
+                );
+              })}
+              {/* Non-project tasks - individual rows */}
+              {(() => {
+                const nonProjectTasks = allTasks.filter(
+                  (t: any) => t.taskType === "accounting" && !t.projectId
+                );
+                if (nonProjectTasks.length === 0) return null;
+                return (
+                  <>
+                    {/* Subheader */}
+                    <TableRow>
+                      <TableCell colSpan={5 + columns.length} className="sticky left-0 z-10 bg-muted/70 font-semibold text-muted-foreground py-2 text-sm border-t-2 border-border">
+                        <div className="flex items-center gap-2">
+                          Вне проекта
+                          {isAccountant && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              title="Создать задачу вне проекта"
+                              onClick={(e) => { e.stopPropagation(); setCreateTaskProjectId(undefined); setIsCreateTaskOpen(true); }}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {nonProjectTasks.map((task: any) => {
+                      const taskKey = `__task_${task.id}`;
+                      // For non-project tasks, payments are stored under __no_project__
+                      // We need to find payments matching this task
+                      const npPayments = payments["__no_project__"] || {};
+                      const taskPaid = Object.values(npPayments).reduce((sum, entries) =>
+                        sum + entries.filter(e => e.taskId === task.id).reduce((s, e) => s + e.amount, 0), 0);
+                      const npIncomes = incomes["__no_project__"] || {};
+                      const taskIncome = Object.values(npIncomes).reduce((sum, entries) =>
+                        sum + entries.filter(e => e.taskId === task.id).reduce((s, e) => s + e.amount, 0), 0);
+                      const taskBudget = task.budget || 0;
+                      const taskRemaining = taskBudget - taskPaid;
 
                       return (
-                        <TableRow className="bg-muted/50 border-t-2 border-border font-semibold">
-                          <TableCell className="sticky left-0 z-10 bg-muted/50 font-bold">Итого</TableCell>
-                          {visibleColumns.budget && (
-                            <TableCell className="text-center tabular-nums font-bold border-l border-border">{formatCurrency(totalBudget)}</TableCell>
-                          )}
-                          {visibleColumns.income && (
-                            <TableCell className="text-center tabular-nums font-bold text-green-600 dark:text-green-400 border-l border-border">{formatCurrency(totalIncome)}</TableCell>
-                          )}
-                          {visibleColumns.saldoIncome && (
-                            <TableCell className={`text-center tabular-nums font-bold border-l border-border ${getSummaryColor(totalSaldoIncome, "saldo")}`}>{formatCurrency(totalSaldoIncome)}</TableCell>
-                          )}
-                          {visibleColumns.opex && (
-                            <TableCell className="text-center tabular-nums font-bold border-l border-border">{formatCurrency(totalOpex)}</TableCell>
-                          )}
-                          {visibleColumns.fot && (
-                            <TableCell className="text-center tabular-nums font-bold border-l border-border">{formatCurrency(totalFot)}</TableCell>
-                          )}
-                          {visibleColumns.totalExpenses && (
-                            <TableCell className="text-center tabular-nums font-bold border-l border-border">{formatCurrency(totalExpAll)}</TableCell>
-                          )}
-                          {visibleColumns.saldoBalance && (
-                            <TableCell className={`text-center tabular-nums font-bold border-l border-border ${getSummaryColor(totalSaldoBalance, "balance")}`}>{formatCurrency(totalSaldoBalance)}</TableCell>
-                          )}
-                          {weeks.map((w, wi) => {
-                            const weekPaid = activeProjects.reduce((s, p) => s + getCellTotal(p.id, wi), 0) + getCellTotal("__no_project__", wi);
-                            const weekIncome = activeProjects.reduce((s, p) => s + getIncomeCellTotal(p.id, wi), 0);
+                        <TableRow key={task.id}>
+                          <TableCell className="sticky left-0 z-10 bg-card font-medium">
+                            <span className="text-sm">{task.title}</span>
+                            {task.accountingSubtype && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({reasonLabels[task.accountingSubtype] || task.accountingSubtype})
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums text-muted-foreground">—</TableCell>
+                          <TableCell className="text-center tabular-nums text-green-600 dark:text-green-400">
+                            {taskIncome > 0 ? `${taskIncome.toLocaleString("ru-RU")} ₽` : "—"}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums text-primary">
+                            {taskPaid > 0 ? `${taskPaid.toLocaleString("ru-RU")} ₽` : "—"}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums text-muted-foreground">—</TableCell>
+                          {columns.map((col, ci) => {
+                            if (col.type === "salary") {
+                              return (
+                                <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                                  <div className="h-7 min-w-[70px]" />
+                                </TableCell>
+                              );
+                            }
+                            const wi = col.weekIndex;
+                            const entries = (payments["__no_project__"]?.[wi] || []).filter(e => e.taskId === task.id);
+                            const cellTotal = entries.reduce((s, e) => s + e.amount, 0);
                             return (
-                              <TableCell key={wi} className="p-1 border-l border-border">
-                                {(weekPaid > 0 || weekIncome > 0) ? (
-                                  <div className="h-auto min-h-[28px] min-w-[70px] flex flex-col items-center justify-center text-[10px] tabular-nums gap-0.5">
-                                    {weekIncome > 0 && <span className="text-green-600 dark:text-green-400">+{formatCurrency(weekIncome)}</span>}
-                                    {weekPaid > 0 && <span className="text-destructive">−{formatCurrency(weekPaid)}</span>}
-                                  </div>
+                              <TableCell
+                                key={ci}
+                                className="p-1 border-l border-border transition-colors"
+                                onClick={() => !isReadOnly && openPaymentDialog("__no_project__", wi)}
+                              >
+                                {cellTotal > 0 ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-destructive">
+                                        −{cellTotal.toLocaleString("ru-RU")}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[300px]">
+                                      <div className="space-y-1">
+                                        {entries.map((e, idx) => (
+                                          <div key={idx} className="flex justify-between gap-4 text-xs">
+                                            <span className="truncate">{e.reason ? reasonLabels[e.reason] || e.reason : ""} {e.taskTitle || ""}</span>
+                                            <span className="font-medium whitespace-nowrap">{formatCurrency(e.amount)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
                                 ) : (
-                                  <div className="h-[28px] min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
+                                  <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums rounded-md border border-transparent hover:border-border text-muted-foreground">
+                                    —
+                                  </div>
                                 )}
                               </TableCell>
                             );
                           })}
                         </TableRow>
                       );
-                    })()}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+                    })}
+                  </>
+                );
+              })()}
+
+              {/* Итого row */}
+              {(() => {
+                const totalBudget = activeProjects.reduce((s, p) => s + p.budget, 0);
+                const totalPaidAll = activeProjects.reduce((s, p) => s + getTotalPaid(p.id), 0) + getTotalPaid("__no_project__");
+                const totalIncomeAll = activeProjects.reduce((s, p) => s + getTotalIncome(p.id), 0) + getTotalIncome("__no_project__");
+                const totalRemaining = totalBudget - totalPaidAll;
+                const totalDaysLeft = activeProjects.length > 0
+                  ? Math.max(...activeProjects.map(p => Math.max(0, differenceInDays(parseISO(p.endDate), today))))
+                  : 0;
+                const remainingPct = totalBudget > 0 ? totalRemaining / totalBudget : 1;
+
+                return (
+                  <TableRow className="bg-muted/50 border-t-2 border-border font-semibold">
+                    <TableCell className="sticky left-0 z-10 bg-muted/50 font-bold">Итого</TableCell>
+                    <TableCell className="text-center tabular-nums font-bold">{totalBudget.toLocaleString("ru-RU")} ₽</TableCell>
+                    <TableCell className="text-center tabular-nums font-bold text-green-600 dark:text-green-400">{totalIncomeAll.toLocaleString("ru-RU")} ₽</TableCell>
+                    <TableCell className="text-center tabular-nums font-bold text-primary">{totalPaidAll.toLocaleString("ru-RU")} ₽</TableCell>
+                    <TableCell className={`text-center tabular-nums font-bold ${
+                      remainingPct > 0.5
+                        ? "text-green-600 dark:text-green-400"
+                        : remainingPct >= 0.1
+                          ? "text-yellow-600 dark:text-yellow-400"
+                          : "text-red-600 dark:text-red-400"
+                    }`}>{totalRemaining.toLocaleString("ru-RU")} ₽</TableCell>
+                    
+                    {columns.map((col, ci) => {
+                      if (col.type === "salary") {
+                        const salaryTotal = getSalaryPaidOnDate(col.date);
+                        return (
+                          <TableCell key={ci} className="p-1 border-l border-border bg-accent/20">
+                            {salaryTotal > 0 ? (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-[10px] tabular-nums text-destructive font-semibold">
+                                −{salaryTotal.toLocaleString("ru-RU")}
+                              </div>
+                            ) : (
+                              <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
+                            )}
+                          </TableCell>
+                        );
+                      }
+                      const wi = col.weekIndex;
+                      const weekPaid = activeProjects.reduce((s, p) => s + getCellTotal(p.id, wi), 0) + getCellTotal("__no_project__", wi);
+                      const weekIncome = activeProjects.reduce((s, p) => s + getIncomeCellTotal(p.id, wi), 0) + getIncomeCellTotal("__no_project__", wi);
+                      return (
+                        <TableCell key={ci} className="p-1 border-l border-border">
+                          {(weekPaid > 0 || weekIncome > 0) ? (
+                            <div className="h-7 min-w-[70px] flex flex-col items-center justify-center text-[10px] tabular-nums">
+                              {weekPaid > 0 && <span className="text-destructive">−{weekPaid.toLocaleString("ru-RU")}</span>}
+                              {weekIncome > 0 && <span className="text-green-600 dark:text-green-400">+{weekIncome.toLocaleString("ru-RU")}</span>}
+                            </div>
+                          ) : (
+                            <div className="h-7 min-w-[70px] flex items-center justify-center text-xs tabular-nums text-muted-foreground">—</div>
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                );
+              })()}
+            </TableBody>
+           </Table>
+          </div>
           </TabsContent>
 
           <TabsContent value="payments" className="mt-0">
-            <SalaryPaymentsTab onPayrollProcessed={() => {}} />
+            <SalaryPaymentsTab onPayrollProcessed={() => setSalaryRefresh((v) => v + 1)} />
           </TabsContent>
 
           <TabsContent value="salary" className="mt-0">
             <SalaryDistributionTab />
           </TabsContent>
         </Tabs>
-
-        {/* Payment/Income Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-[540px]">
             <DialogHeader>
@@ -829,13 +898,17 @@ export default function Finance() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">— Не выбрана —</SelectItem>
-                      {editCell && getProjectAccountantTasks(editCell.projectId).map((task: any) => (
-                        <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
-                      ))}
+                      {editCell &&
+                        getProjectAccountantTasks(editCell.projectId).map((task: any) => (
+                          <SelectItem key={task.id} value={task.id}>
+                            {task.title}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
               )}
+
               {dialogMode === "payment" && dialogTaskId && dialogTaskId !== "none" && (() => {
                 const task = getSelectedTask();
                 return task?.accountingSubtype ? (
@@ -844,6 +917,8 @@ export default function Finance() {
                   </div>
                 ) : null;
               })()}
+
+              {/* Per-employee amounts when task has employees */}
               {dialogMode === "payment" && hasEmployees && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -857,7 +932,9 @@ export default function Finance() {
                       <div key={emp.id} className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
                         <div className="flex-1 min-w-0">
                           <span className="text-sm truncate block">{emp.name}</span>
-                          {emp.rate ? <span className="text-xs text-muted-foreground">Ставка: {emp.rate.toLocaleString("ru-RU")} ₽</span> : null}
+                          {emp.rate ? (
+                            <span className="text-xs text-muted-foreground">Ставка: {emp.rate.toLocaleString("ru-RU")} ₽</span>
+                          ) : null}
                         </div>
                         <Input
                           type="number"
@@ -871,21 +948,39 @@ export default function Finance() {
                   </div>
                 </div>
               )}
+
               {dialogMode === "income" && (
                 <div className="space-y-2">
                   <Label>Описание</Label>
-                  <Input placeholder="Напр. Оплата от заказчика за этап 1" value={dialogNote} onChange={(e) => setDialogNote(e.target.value)} />
+                  <Input
+                    placeholder="Напр. Оплата от заказчика за этап 1"
+                    value={dialogNote}
+                    onChange={(e) => setDialogNote(e.target.value)}
+                  />
                 </div>
               )}
+
+              {/* Single amount field - shown for income or payment without employees */}
               {(dialogMode === "income" || !hasEmployees) && (
                 <div className="space-y-2">
-                  <Label htmlFor="payment-amount">{dialogMode === "income" ? "Сумма прихода *" : "Сумма выплаты *"}</Label>
-                  <Input id="payment-amount" type="number" placeholder="Введите сумму" value={dialogAmount} onChange={(e) => setDialogAmount(e.target.value)} autoFocus />
+                  <Label htmlFor="payment-amount">
+                    {dialogMode === "income" ? "Сумма прихода *" : "Сумма выплаты *"}
+                  </Label>
+                  <Input
+                    id="payment-amount"
+                    type="number"
+                    placeholder="Введите сумму"
+                    value={dialogAmount}
+                    onChange={(e) => setDialogAmount(e.target.value)}
+                    autoFocus
+                  />
                 </div>
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Отмена</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Отмена
+              </Button>
               <Button
                 onClick={saveEntry}
                 disabled={
