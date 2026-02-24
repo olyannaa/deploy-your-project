@@ -257,6 +257,7 @@ export default function Finance() {
   // Planned incomes
   const [plannedIncomes, setPlannedIncomes] = useState<Record<string, Record<number, PlannedIncomeEntry[]>>>(globalPlannedIncomes);
   const updatePlannedIncomes = (next: Record<string, Record<number, PlannedIncomeEntry[]>>) => { setPlannedIncomes(next); setGlobalPlannedIncomes(next); };
+  const [showMissedWarnings, setShowMissedWarnings] = useState(true);
 
   // View mode (Факт / План)
   const [viewMode, setViewMode] = useState<"fact" | "plan">("fact");
@@ -351,6 +352,7 @@ export default function Finance() {
 
   // Check if planned income exists but no actual income for a week column
   const hasMissedIncome = (projectId: string, colIndex: number, col: typeof columns[number]) => {
+    if (!showMissedWarnings) return false;
     if (col.type !== "week") return false;
     if (!isDatePast(col)) return false;
     const planned = getPlannedCellTotal(projectId, colIndex);
@@ -542,6 +544,14 @@ export default function Finance() {
                   </div>
                 </PopoverContent>
               </Popover>
+
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <Checkbox
+                  checked={showMissedWarnings}
+                  onCheckedChange={(v) => setShowMissedWarnings(!!v)}
+                />
+                Нет прихода
+              </label>
             </div>
 
             <div className="rounded-lg border border-border overflow-auto bg-card">
